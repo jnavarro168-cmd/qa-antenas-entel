@@ -11,16 +11,29 @@ st.set_page_config(
 st.title("📡 Entel QA - Inspector de Antenas")
 st.write("Verificación de Azimut y Tilt en tiempo real con captura de evidencia.")
 
-# --- PARÁMETROS Y NEMÓNICO ---
+# --- PARÁMETROS, NEMÓNICO Y SECTOR ---
 st.subheader("1. Identificación y Parámetros Teóricos")
 
-sitio_nemonico = st.text_input(
-    "Nemónico del Sitio / Nodo:", 
-    value="SA542", 
-    max_chars=20,
-    help="Ingrese el código identificador del sitio (ej: SA542, CL304, etc.)"
-).strip().upper()
+# Fila para identificar el Nodo y el Sector
+col_id1, col_id2 = st.columns([2, 1])
 
+with col_id1:
+    sitio_nemonico = st.text_input(
+        "Nemónico del Sitio / Nodo:", 
+        value="SA542", 
+        max_chars=20,
+        help="Ingrese el código identificador del sitio (ej: SA542, CL304, etc.)"
+    ).strip().upper()
+
+with col_id2:
+    sector_seleccionado = st.selectbox(
+        "Sector:",
+        options=["Sector 1", "Sector 2", "Sector 3", "Sector 4"],
+        index=0,
+        help="Seleccione el sector correspondiente a la antena mapeada."
+    )
+
+# Fila para los parámetros técnicos
 col_input1, col_input2 = st.columns(2)
 
 with col_input1:
@@ -48,6 +61,10 @@ TOL_TILT = 2.0
 
 st.info("💡 Coloque el celular de espaldas paralelo al panel de la antena usando el sistema de pinza.")
 
+# Identificador unificado para mostrar en foto (ej: SA542 - SECTOR 1)
+texto_identificacion = f"{sitio_nemonico} - {sector_seleccionado.upper()}"
+nombre_archivo_sector = f"{sitio_nemonico}_{sector_seleccionado.replace(' ', '-')}"
+
 # --- COMPONENTE INTEGRADO ULTRA-ESTABILIZADO ---
 js_camera_and_sensors = f"""
 <div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: sans-serif; background: #0f172a; padding: 10px; border-radius: 16px;">
@@ -56,8 +73,8 @@ js_camera_and_sensors = f"""
         <video id="webcam" autoplay playsinline style="width: 100%; display: block;"></video>
         <canvas id="snapshot" style="display: none; width: 100%; border-radius: 12px;"></canvas>
         
-        <div style="position: absolute; top: 15px; left: 15px; background: rgba(15, 23, 42, 0.75); color: #38bdf8; padding: 6px 12px; border-radius: 6px; font-weight: bold; font-size: 14px; border: 1px solid rgba(56, 189, 248, 0.4);">
-            SITIO: {sitio_nemonico}
+        <div style="position: absolute; top: 15px; left: 15px; background: rgba(15, 23, 42, 0.75); color: #38bdf8; padding: 6px 12px; border-radius: 6px; font-weight: bold; font-size: 13px; border: 1px solid rgba(56, 189, 248, 0.4);">
+            {texto_identificacion}
         </div>
         
         <div style="position: absolute; top: 20px; left: 20px; right: 20px; bottom: 20px; border: 1px dashed rgba(255,255,255,0.3); pointer-events: none; border-radius: 6px;"></div>
@@ -65,8 +82,8 @@ js_camera_and_sensors = f"""
     
     <div id="data-panel" style="margin-top: 15px; background: #1e293b; color: white; padding: 15px; border-radius: 12px; border: 4px solid #ef4444; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: border-color 0.3s ease;">
         
-        <div style="display: flex; justify-content: space-between; font-size: 13px; color: #94a3b8; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #334155; padding-bottom: 5px;">
-            <div>SITIO: {sitio_nemonico} | AZ {azimut_teorico}° | TLT {tilt_teorico}°</div>
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: #94a3b8; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #334155; padding-bottom: 5px;">
+            <div>ID: {texto_identificacion} | AZ {azimut_teorico}° | TLT {tilt_teorico}°</div>
             <div>TOL: Az±5° | Tlt±2°</div>
         </div>
 
@@ -110,17 +127,15 @@ js_camera_and_sensors = f"""
     const btnCapturar = document.getElementById('btn-capturar');
     const downloadLink = document.getElementById('download-link');
     
-    const tSitio = "{sitio_nemonico}";
+    const tIdentificacion = "{texto_identificacion}";
+    const tNombreArchivo = "{nombre_archivo_sector}";
     const tAzimut = {azimut_teorico};
     const tTilt = {tilt_teorico};
     const tolAzimut = {TOL_AZIMUT};
     const tolTilt = {TOL_TILT};
 
-    // --- FILTROS DE AMORTIGUACIÓN EXTREMA ---
     let azimutSuave = null;
     let tiltSuave = null;
-    
-    // FACTOR_SUAVIDAD: 0.02 genera lecturas increíblemente estables y firmes
     const FACTOR_SUAVIDAD = 0.02; 
 
     function filtrarAzimutExponencial(nuevoHeading) {{
@@ -176,27 +191,23 @@ js_camera_and_sensors = f"""
         let beta = event.beta; 
         if (heading === null || heading === undefined || beta === null) return;
 
-        // Aplicamos estabilización avanzada a ambos sensores
         let azSuaveDeg = filtrarAzimutExponencial(heading);
         let tltSuaveDeg = filtrarTiltExponencial(beta);
         
         let azimutReal = Math.round(azSuaveDeg);
         let tiltReal = Math.round(tltSuaveDeg);
 
-        // Calcular desviaciones
         let desvAzimut = azimutReal - tAzimut;
         if (desvAzimut > 180) desvAzimut -= 360;
         if (desvAzimut < -180) desvAzimut += 360;
         
         let desvTilt = tiltReal - tTilt;
 
-        // Renderizar en UI
         document.getElementById('lbl-azimut-real').innerText = azimutReal;
         document.getElementById('lbl-tilt-real').innerText = tiltReal;
         document.getElementById('lbl-azimut-desv').innerText = (desvAzimut > 0 ? "+" : "") + desvAzimut;
         document.getElementById('lbl-tilt-desv').innerText = (desvTilt > 0 ? "+" : "") + desvTilt;
 
-        // Tolerancias
         const azimutOk = Math.abs(desvAzimut) <= tolAzimut;
         const tiltOk = Math.abs(desvTilt) <= tolTilt;
         const statusElement = document.getElementById('lbl-status');
@@ -231,18 +242,19 @@ js_camera_and_sensors = f"""
         
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         
+        // Estampar identificación en la esquina superior izquierda de la foto (Nodo + Sector)
         ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
-        ctx.fillRect(20, 20, 180, 45);
+        ctx.fillRect(20, 20, 250, 45);
         ctx.fillStyle = "#38bdf8";
-        ctx.font = "bold 18px sans-serif";
-        ctx.fillText("SITIO: " + tSitio, 35, 48);
+        ctx.font = "bold 16px sans-serif";
+        ctx.fillText(tIdentificacion, 35, 48);
         
         ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
         ctx.fillRect(0, canvas.height - 180, canvas.width, 180);
         
         ctx.fillStyle = "#ffffff";
         ctx.font = "bold 22px sans-serif";
-        ctx.fillText("EVIDENCIA DE INSPECCIÓN - SITIO " + tSitio, 30, canvas.height - 130);
+        ctx.fillText("EVIDENCIA DE INSPECCIÓN - " + tIdentificacion, 30, canvas.height - 130);
         
         const azReal = document.getElementById('lbl-azimut-real').innerText;
         const tltReal = document.getElementById('lbl-tilt-real').innerText;
@@ -260,7 +272,7 @@ js_camera_and_sensors = f"""
         try {{
             const dataURL = canvas.toDataURL('image/png');
             downloadLink.href = dataURL;
-            downloadLink.download = "QA_" + tSitio + "_AZ" + azReal + "_TLT" + tltReal + ".png";
+            downloadLink.download = "QA_" + tNombreArchivo + "_AZ" + azReal + "_TLT" + tltReal + ".png";
             downloadLink.click();
         }} catch(e) {{
             alert("Use la captura nativa del móvil.");
