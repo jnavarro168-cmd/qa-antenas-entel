@@ -9,9 +9,9 @@ st.set_page_config(
 )
 
 st.title("📡 Entel QA - Inspector de Antenas")
-st.write("Verificación de Azimut y Tilt en tiempo real con captura de evidencia.")
+st.write("Verificación de Azimut y Tilt con calibración magnética.")
 
-# --- PARÁMETROS, NEMÓNICO Y SECTOR ---
+# --- PARÁMETROS, IDENTIFICACIÓN Y COMPENSACIÓN ---
 st.subheader("1. Identificación y Parámetros Teóricos")
 
 col_id1, col_id2 = st.columns([2, 1])
@@ -20,16 +20,14 @@ with col_id1:
     sitio_nemonico = st.text_input(
         "Nemónico del Sitio / Nodo:", 
         value="SA542", 
-        max_chars=20,
-        help="Ingrese el código identificador del sitio (ej: SA542, CL304, etc.)"
+        max_chars=20
     ).strip().upper()
 
 with col_id2:
     sector_seleccionado = st.selectbox(
         "Sector:",
         options=["Sector 1", "Sector 2", "Sector 3", "Sector 4"],
-        index=0,
-        help="Seleccione el sector correspondiente a la antena mapeada."
+        index=0
     )
 
 col_input1, col_input2 = st.columns(2)
@@ -37,32 +35,33 @@ col_input1, col_input2 = st.columns(2)
 with col_input1:
     azimut_teorico = st.number_input(
         "Azimut Teórico (°)", 
-        min_value=0.0, 
-        max_value=360.0, 
-        value=120.0, 
-        step=1.0,
-        help="Ingrese el azimut teórico de diseño para el sector."
+        min_value=0.0, max_value=360.0, value=120.0, step=1.0
     )
 
 with col_input2:
     tilt_teorico = st.number_input(
         "Tilt Teórico (°)", 
-        min_value=-90.0, 
-        max_value=90.0, 
-        value=-5.0, 
-        step=0.5,
-        help="Ingrese el tilt mecánico teórico de diseño para el sector."
+        min_value=-90.0, max_value=90.0, value=-5.0, step=0.5
     )
+
+# --- NUEVO: COMPENSACIÓN POR DECLINACIÓN O INTERFERENCIA ---
+st.subheader("🔧 Calibración de Brújula")
+compensacion_azimut = st.number_input(
+    "Ajuste / Offset de Azimut (°):",
+    min_value=-180.0,
+    max_value=180.0,
+    value=0.0,
+    step=1.0,
+    help="Sume o reste grados para emparejar la app con su brújula Suunto (Ej: si la app marca 315 y la Suunto 338, ingrese 23)."
+)
 
 TOL_AZIMUT = 5.0
 TOL_TILT = 2.0
 
-st.info("💡 Coloque el celular de espaldas paralelo al panel de la antena usando el sistema de pinza.")
-
 texto_identificacion = f"{sitio_nemonico} - {sector_seleccionado.upper()}"
 nombre_archivo_sector = f"{sitio_nemonico}_{sector_seleccionado.replace(' ', '-')}"
 
-# --- COMPONENTE INTEGRADO ULTRA-ESTABILIZADO V5.5 ---
+# --- COMPONENTE INTEGRADO CON COMPENSACIÓN V5.6 ---
 js_camera_and_sensors = f"""
 <div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: sans-serif; background: #0f172a; padding: 10px; border-radius: 16px;">
     
@@ -71,7 +70,7 @@ js_camera_and_sensors = f"""
         <canvas id="snapshot" style="display: none; width: 100%; border-radius: 12px;"></canvas>
         
         <div style="position: absolute; top: 15px; left: 15px; background: rgba(15, 23, 42, 0.75); color: #38bdf8; padding: 6px 12px; border-radius: 6px; font-weight: bold; font-size: 13px; border: 1px solid rgba(56, 189, 248, 0.4);">
-            {texto_identificacion}
+            {texto_identificacion} (Cal: {compensacion_azimut}°)
         </div>
         
         <div style="position: absolute; top: 20px; left: 20px; right: 20px; bottom: 20px; border: 1px dashed rgba(255,255,255,0.3); pointer-events: none; border-radius: 6px;"></div>
@@ -86,7 +85,7 @@ js_camera_and_sensors = f"""
 
         <div style="display: flex; gap: 10px; justify-content: space-between; text-align: center;">
             <div style="flex: 1; background: #0f172a; padding: 8px; border-radius: 8px;">
-                <div style="font-size: 11px; color: #38bdf8; font-weight: bold;">AZIMUT REAL</div>
+                <div style="font-size: 11px; color: #38bdf8; font-weight: bold;">AZIMUT COMPENSADO</div>
                 <div style="font-size: 26px; font-weight: bold; margin: 2px 0;"><span id="lbl-azimut-real">--</span>°</div>
                 <div style="font-size: 11px; color: #cbd5e1;">Desv: <span id="lbl-azimut-desv">--</span>°</div>
             </div>
@@ -130,17 +129,16 @@ js_camera_and_sensors = f"""
     const tTilt = {tilt_teorico};
     const tolAzimut = {TOL_AZIMUT};
     const tolTilt = {TOL_TILT};
+    
+    // Traemos el offset definido en Streamlit
+    const offsetAzimut = {compensacion_azimut};
 
-    // --- VARIABLES DE CONTROL SENSORIAL AVANZADO ---
     let azimutSuave = null;
     let tiltSuave = null;
     let ultimoAzimutRenderizado = null;
 
-    // Amortiguación ultra-agresiva para ignorar ruidos electromagnéticos de la torre
     const FACTOR_SUAVIDAD_AZIMUT = 0.005; 
     const FACTOR_SUAVIDAD_TILT = 0.02;
-    
-    // Histéresis: Grados mínimos de cambio real requeridos para mover el display
     const UMBRAL_ZONA_MUERTA = 1.0; 
 
     function filtrarAzimutAvanzado(nuevoHeading) {{
@@ -154,13 +152,11 @@ js_camera_and_sensors = f"""
         if (diferencia > 180) diferencia -= 360;
         if (diferencia < -180) diferencia += 360;
         
-        // Aplicamos el amortiguador ultra pesado
-        azimutSuave += diferencia * FACTOR_SUAVIDAD_AZIMUT;
+        azimutSuave += diferencia * FACTOR_SUAVISAD_AZIMUT;
         
         if (azimutSuave < 0) azimutSuave += 360;
         if (azimutSuave >= 360) azimutSuave -= 360;
         
-        // Aplicamos Filtro de Histéresis (Zona muerta para evitar oscilación de 1 grado)
         let candidatoRedondeado = Math.round(azimutSuave);
         let deltaDisplay = candidatoRedondeado - ultimoAzimutRenderizado;
         if (deltaDisplay > 180) deltaDisplay -= 360;
@@ -191,7 +187,7 @@ js_camera_and_sensors = f"""
             video.srcObject = stream;
             btnCapturar.style.display = 'block';
         }} catch (err) {{
-            console.error("Error cámara: ", err);
+            console.error("Error: ", err);
         }}
     }}
 
@@ -208,10 +204,19 @@ js_camera_and_sensors = f"""
         let beta = event.beta; 
         if (heading === null || heading === undefined || beta === null) return;
 
-        // Procesamiento con los nuevos filtros de grado industrial
-        let azimutReal = filtrarAzimutAvanzado(heading);
+        // 1. Obtener azimut base filtrado
+        let azimutBase = filtrarAzimutAvanzado(heading);
+        
+        // 2. APLICAR COMPENSACIÓN MANUAL
+        let azimutReal = azimutBase + offsetAzimut;
+        
+        // Normalizar para que se mantenga entre 0 y 359 grados
+        if (azimutReal < 0) azimutReal += 360;
+        if (azimutReal >= 360) azimutReal -= 360;
+
         let tiltReal = Math.round(filtrarTiltExponencial(beta));
 
+        // Calcular desviaciones contra el teórico
         let desvAzimut = azimutReal - tAzimut;
         if (desvAzimut > 180) desvAzimut -= 360;
         if (desvAzimut < -180) desvAzimut += 360;
@@ -258,10 +263,10 @@ js_camera_and_sensors = f"""
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         
         ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
-        ctx.fillRect(20, 20, 250, 45);
+        ctx.fillRect(20, 20, 310, 45);
         ctx.fillStyle = "#38bdf8";
-        ctx.font = "bold 16px sans-serif";
-        ctx.fillText(tIdentificacion, 35, 48);
+        ctx.font = "bold 15px sans-serif";
+        ctx.fillText(tIdentificacion + " (Cal: " + offsetAzimut + "°)", 35, 48);
         
         ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
         ctx.fillRect(0, canvas.height - 180, canvas.width, 180);
@@ -289,7 +294,7 @@ js_camera_and_sensors = f"""
             downloadLink.download = "QA_" + tNombreArchivo + "_AZ" + azReal + "_TLT" + tltReal + ".png";
             downloadLink.click();
         }} catch(e) {{
-            alert("Use la captura nativa del móvil.");
+            alert("Use la captura nativa.");
         }}
     }});
 </script>
