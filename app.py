@@ -48,7 +48,7 @@ TOL_TILT = 2.0
 
 st.info("💡 Coloque el celular de espaldas paralelo al panel de la antena usando el sistema de pinza.")
 
-# --- COMPONENTE INTEGRADO OPTIMIZADO ---
+# --- COMPONENTE INTEGRADO ULTRA-ESTABILIZADO ---
 js_camera_and_sensors = f"""
 <div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: sans-serif; background: #0f172a; padding: 10px; border-radius: 16px;">
     
@@ -116,9 +116,12 @@ js_camera_and_sensors = f"""
     const tolAzimut = {TOL_AZIMUT};
     const tolTilt = {TOL_TILT};
 
-    // --- MEJORA SENSORES: FILTRO EXPONENCIAL PARA AZIMUT ESTABLE ---
+    // --- FILTROS DE AMORTIGUACIÓN EXTREMA ---
     let azimutSuave = null;
-    const FACTOR_SUAVIDAD = 0.08; // Menor valor = más estable y suave. Mayor valor = más rápido.
+    let tiltSuave = null;
+    
+    // FACTOR_SUAVIDAD: 0.02 genera lecturas increíblemente estables y firmes
+    const FACTOR_SUAVIDAD = 0.02; 
 
     function filtrarAzimutExponencial(nuevoHeading) {{
         if (azimutSuave === null) {{
@@ -126,7 +129,6 @@ js_camera_and_sensors = f"""
             return azimutSuave;
         }}
         
-        // Manejo del cruce de ángulo circular (entre 359° y 0°)
         let diferencia = nuevoHeading - azimutSuave;
         if (diferencia > 180) diferencia -= 360;
         if (diferencia < -180) diferencia += 360;
@@ -137,6 +139,15 @@ js_camera_and_sensors = f"""
         if (azimutSuave >= 360) azimutSuave -= 360;
         
         return azimutSuave;
+    }}
+
+    function filtrarTiltExponencial(nuevoBeta) {{
+        if (tiltSuave === null) {{
+            tiltSuave = nuevoBeta;
+            return tiltSuave;
+        }}
+        tiltSuave += (nuevoBeta - tiltSuave) * FACTOR_SUAVIDAD;
+        return tiltSuave;
     }}
 
     async function iniciarCamara() {{
@@ -165,12 +176,14 @@ js_camera_and_sensors = f"""
         let beta = event.beta; 
         if (heading === null || heading === undefined || beta === null) return;
 
-        // Aplicamos el nuevo estabilizador de aguja magnética
+        // Aplicamos estabilización avanzada a ambos sensores
         let azSuaveDeg = filtrarAzimutExponencial(heading);
+        let tltSuaveDeg = filtrarTiltExponencial(beta);
+        
         let azimutReal = Math.round(azSuaveDeg);
-        let tiltReal = Math.round(beta);
+        let tiltReal = Math.round(tltSuaveDeg);
 
-        // Calcular desviaciones exactas
+        // Calcular desviaciones
         let desvAzimut = azimutReal - tAzimut;
         if (desvAzimut > 180) desvAzimut -= 360;
         if (desvAzimut < -180) desvAzimut += 360;
@@ -183,7 +196,7 @@ js_camera_and_sensors = f"""
         document.getElementById('lbl-azimut-desv').innerText = (desvAzimut > 0 ? "+" : "") + desvAzimut;
         document.getElementById('lbl-tilt-desv').innerText = (desvTilt > 0 ? "+" : "") + desvTilt;
 
-        // --- CORRECCIÓN LÓGICA DE TOLERANCIA ---
+        // Tolerancias
         const azimutOk = Math.abs(desvAzimut) <= tolAzimut;
         const tiltOk = Math.abs(desvTilt) <= tolTilt;
         const statusElement = document.getElementById('lbl-status');
