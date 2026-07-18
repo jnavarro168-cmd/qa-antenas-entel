@@ -1,5 +1,4 @@
 import streamlit as st
-import pandas as pd
 
 # Configuración de la página para móviles
 st.set_page_config(
@@ -12,10 +11,9 @@ st.set_page_config(
 st.title("📡 Entel QA - Inspector de Antenas")
 st.write("Verificación de Azimut y Tilt en tiempo real con captura de evidencia.")
 
-# --- MEJORA: INGRESAR PARÁMETROS Y NEMÓNICO MANUALMENTE ---
+# --- PARÁMETROS Y NEMÓNICO ---
 st.subheader("1. Identificación y Parámetros Teóricos")
 
-# Campo completo para el Nemónico del Sitio
 sitio_nemonico = st.text_input(
     "Nemónico del Sitio / Nodo:", 
     value="SA542", 
@@ -50,16 +48,14 @@ TOL_TILT = 2.0
 
 st.info("💡 Coloque el celular de espaldas paralelo al panel de la antena usando el sistema de pinza.")
 
-# --- COMPONENTE COMPLETO: CÁMARA, SENSORES ESTABILIZADOS Y CAPTURA CON MARCA DE AGUA ---
+# --- COMPONENTE INTEGRADO (CÁMARA, SENSORES Y CAPTURA) ---
 js_camera_and_sensors = f"""
 <div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: sans-serif; background: #0f172a; padding: 10px; border-radius: 16px;">
     
-    <!-- Contenedor de video con el Nemónico flotante en la esquina -->
     <div style="position: relative; width: 100%; border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
         <video id="webcam" autoplay playsinline style="width: 100%; display: block;"></video>
         <canvas id="snapshot" style="display: none; width: 100%; border-radius: 12px;"></canvas>
         
-        <!-- Nemónico sutil flotando arriba a la izquierda del video en vivo -->
         <div style="position: absolute; top: 15px; left: 15px; background: rgba(15, 23, 42, 0.75); color: #38bdf8; padding: 6px 12px; border-radius: 6px; font-weight: bold; font-size: 14px; border: 1px solid rgba(56, 189, 248, 0.4);">
             SITIO: {sitio_nemonico}
         </div>
@@ -67,7 +63,6 @@ js_camera_and_sensors = f"""
         <div style="position: absolute; top: 20px; left: 20px; right: 20px; bottom: 20px; border: 1px dashed rgba(255,255,255,0.3); pointer-events: none; border-radius: 6px;"></div>
     </div>
     
-    <!-- Panel de datos ubicado ABAJO del video -->
     <div id="data-panel" style="margin-top: 15px; background: #1e293b; color: white; padding: 15px; border-radius: 12px; border: 4px solid #64748b; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
         
         <div style="display: flex; justify-content: space-between; font-size: 13px; color: #94a3b8; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #334155; padding-bottom: 5px;">
@@ -95,7 +90,6 @@ js_camera_and_sensors = f"""
     </div>
 </div>
 
-<!-- Controles del Sistema -->
 <div style="max-width: 500px; margin: 15px auto 0 auto; display: flex; flex-direction: column; gap: 10px;">
     <button id="btn-permisos" style="padding: 14px 24px; font-size: 16px; font-weight: bold; background-color: #005A9C; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.15);">
         🔄 SOLICITAR ACCESO (SENSORES Y CÁMARA)
@@ -122,7 +116,6 @@ js_camera_and_sensors = f"""
     const tolAzimut = {TOL_AZIMUT};
     const tolTilt = {TOL_TILT};
 
-    // --- FILTRO ESTABILIZADOR (MEDIA MÓVIL) ---
     const TAMANO_FILTRO = 15;
     let lecturasAzimut = [];
 
@@ -156,13 +149,12 @@ js_camera_and_sensors = f"""
             video.srcObject = stream;
             btnCapturar.style.display = 'block';
         }} catch (err) {{
-            console.error("Error cámara trasera: ", err);
+            console.error("Error cámara: ", err);
         }}
     }}
 
     function procesarOrientacion(event) {{
         let heading = event.webkitCompassHeading;
-        
         if (heading === undefined || heading === null) {{
             if (event.absolute === true && event.alpha !== null) {{
                 heading = 360 - event.alpha;
@@ -172,11 +164,9 @@ js_camera_and_sensors = f"""
         }}
 
         let beta = event.beta; 
-
         if (heading === null || heading === undefined || beta === null) return;
 
         let azimutEstabilizado = filtrarAzimut(heading);
-
         let azimutReal = Math.round(azimutEstabilizado);
         let tiltReal = Math.round(beta);
 
@@ -215,59 +205,52 @@ js_camera_and_sensors = f"""
             window.addEventListener('deviceorientationabsolute', procesarOrientacion, true);
             document.getElementById('lbl-status').innerText = "CONECTANDO SENSORES...";
         }} else {{
-            alert("No se detectan sensores.");
+            alert("Sensores no disponibles.");
         }}
         btnPermisos.style.display = 'none';
     }});
 
-    // --- LOGICA DE CAPTURA CON SALTO DE LÍNEA Y NEMÓNICO ---
+    // --- CORRECCIÓN CLAVE DE CONFLICTO STRING LITERALS ---
     btnCapturar.addEventListener('click', () => {{
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         const ctx = canvas.getContext('2d');
         
-        // 1. Dibujar imagen de la cámara
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         
-        // Estampar Nemónico en la esquina superior izquierda de la foto guardada
         ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
         ctx.fillRect(20, 20, 180, 45);
         ctx.fillStyle = "#38bdf8";
         ctx.font = "bold 18px sans-serif";
-        ctx.fillText(`SITIO: ${sitio_nemonico}`, 35, 48);
+        ctx.fillText("SITIO: " + tSitio, 35, 48);
         
-        // 2. Renderizar franja técnica abajo en dos líneas limpias
         ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
         ctx.fillRect(0, canvas.height - 180, canvas.width, 180);
         
         ctx.fillStyle = "#ffffff";
         ctx.font = "bold 22px sans-serif";
-        ctx.fillText(`EVIDENCIA DE INSPECCIÓN - SITIO ${sitio_nemonico}`, 30, canvas.height - 130);
+        ctx.fillText("EVIDENCIA DE INSPECCIÓN - SITIO " + tSitio, 30, canvas.height - 130);
         
         const azReal = document.getElementById('lbl-azimut-real').innerText;
         const tltReal = document.getElementById('lbl-tilt-real').innerText;
         const status = document.getElementById('lbl-status').innerText;
         
-        ctx.font = "18px sans-serif";
+        ctx.font = "17px sans-serif";
         ctx.fillStyle = "#38bdf8";
-        // Línea 1: Azimut
-        ctx.fillText(`AZIMUT REAL: ${azReal}° (Teórico: ${tAzimut}°)`, 30, canvas.height - 95);
-        // Línea 2: Tilt
-        ctx.fillText(`TILT REAL: ${tltReal}° (Teórico: ${tTilt}°)`, 30, canvas.height - 65);
+        ctx.fillText("AZIMUT REAL: " + azReal + "° (Teórico: " + tAzimut + "°)", 30, canvas.height - 95);
+        ctx.fillText("TILT REAL: " + tltReal + "° (Teórico: " + tTilt + "°)", 30, canvas.height - 65);
         
-        // Estado de aprobación
         ctx.font = "bold 18px sans-serif";
         ctx.fillStyle = status.includes("CONFORME") ? "#22c55e" : "#ef4444";
-        ctx.fillText(`ESTADO: ${status}`, 30, canvas.height - 25);
+        ctx.fillText("ESTADO: " + status, 30, canvas.height - 25);
         
-        // 3. Descargar archivo PNG nombrado dinámicamente con el Nemónico
         try {{
             const dataURL = canvas.toDataURL('image/png');
             downloadLink.href = dataURL;
-            downloadLink.download = `QA_${sitio_nemonico}_AZ${azReal}_TLT${tltReal}.png`;
+            downloadLink.download = "QA_" + tSitio + "_AZ" + azReal + "_TLT" + tltReal + ".png";
             downloadLink.click();
         }} catch(e) {{
-            alert("Use los botones nativos del celular para capturar.");
+            alert("Use la captura nativa del móvil.");
         }}
     }});
 </script>
