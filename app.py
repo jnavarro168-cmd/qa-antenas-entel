@@ -44,7 +44,7 @@ with col_input2:
         min_value=-90.0, max_value=90.0, value=-5.0, step=0.5
     )
 
-# --- NUEVO: COMPENSACIÓN POR DECLINACIÓN O INTERFERENCIA ---
+# --- CALIBRACIÓN POR DECLINACIÓN O INTERFERENCIA ---
 st.subheader("🔧 Calibración de Brújula")
 compensacion_azimut = st.number_input(
     "Ajuste / Offset de Azimut (°):",
@@ -61,7 +61,7 @@ TOL_TILT = 2.0
 texto_identificacion = f"{sitio_nemonico} - {sector_seleccionado.upper()}"
 nombre_archivo_sector = f"{sitio_nemonico}_{sector_seleccionado.replace(' ', '-')}"
 
-# --- COMPONENTE INTEGRADO CON COMPENSACIÓN V5.6 ---
+# --- COMPONENTE INTEGRADO CORREGIDO V5.7 ---
 js_camera_and_sensors = f"""
 <div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: sans-serif; background: #0f172a; padding: 10px; border-radius: 16px;">
     
@@ -130,13 +130,13 @@ js_camera_and_sensors = f"""
     const tolAzimut = {TOL_AZIMUT};
     const tolTilt = {TOL_TILT};
     
-    // Traemos el offset definido en Streamlit
     const offsetAzimut = {compensacion_azimut};
 
     let azimutSuave = null;
     let tiltSuave = null;
     let ultimoAzimutRenderizado = null;
 
+    // Constantes corregidas ortográficamente
     const FACTOR_SUAVIDAD_AZIMUT = 0.005; 
     const FACTOR_SUAVIDAD_TILT = 0.02;
     const UMBRAL_ZONA_MUERTA = 1.0; 
@@ -152,7 +152,8 @@ js_camera_and_sensors = f"""
         if (diferencia > 180) diferencia -= 360;
         if (diferencia < -180) diferencia += 360;
         
-        azimutSuave += diferencia * FACTOR_SUAVISAD_AZIMUT;
+        // CORREGIDO: Ahora coincide perfectamente con la definición de arriba
+        azimutSuave += diferencia * FACTOR_SUAVIDAD_AZIMUT;
         
         if (azimutSuave < 0) azimutSuave += 360;
         if (azimutSuave >= 360) azimutSuave -= 360;
@@ -204,19 +205,14 @@ js_camera_and_sensors = f"""
         let beta = event.beta; 
         if (heading === null || heading === undefined || beta === null) return;
 
-        // 1. Obtener azimut base filtrado
         let azimutBase = filtrarAzimutAvanzado(heading);
-        
-        // 2. APLICAR COMPENSACIÓN MANUAL
         let azimutReal = azimutBase + offsetAzimut;
         
-        // Normalizar para que se mantenga entre 0 y 359 grados
         if (azimutReal < 0) azimutReal += 360;
         if (azimutReal >= 360) azimutReal -= 360;
 
         let tiltReal = Math.round(filtrarTiltExponencial(beta));
 
-        // Calcular desviaciones contra el teórico
         let desvAzimut = azimutReal - tAzimut;
         if (desvAzimut > 180) desvAzimut -= 360;
         if (desvAzimut < -180) desvAzimut += 360;
