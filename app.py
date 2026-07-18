@@ -14,7 +14,6 @@ st.write("Verificación de Azimut y Tilt en tiempo real con captura de evidencia
 # --- PARÁMETROS, NEMÓNICO Y SECTOR ---
 st.subheader("1. Identificación y Parámetros Teóricos")
 
-# Fila para identificar el Nodo y el Sector
 col_id1, col_id2 = st.columns([2, 1])
 
 with col_id1:
@@ -33,7 +32,6 @@ with col_id2:
         help="Seleccione el sector correspondiente a la antena mapeada."
     )
 
-# Fila para los parámetros técnicos
 col_input1, col_input2 = st.columns(2)
 
 with col_input1:
@@ -61,11 +59,10 @@ TOL_TILT = 2.0
 
 st.info("💡 Coloque el celular de espaldas paralelo al panel de la antena usando el sistema de pinza.")
 
-# Identificador unificado para mostrar en foto (ej: SA542 - SECTOR 1)
 texto_identificacion = f"{sitio_nemonico} - {sector_seleccionado.upper()}"
 nombre_archivo_sector = f"{sitio_nemonico}_{sector_seleccionado.replace(' ', '-')}"
 
-# --- COMPONENTE INTEGRADO ULTRA-ESTABILIZADO ---
+# --- COMPONENTE INTEGRADO ULTRA-ESTABILIZADO V5.5 ---
 js_camera_and_sensors = f"""
 <div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: sans-serif; background: #0f172a; padding: 10px; border-radius: 16px;">
     
@@ -134,13 +131,22 @@ js_camera_and_sensors = f"""
     const tolAzimut = {TOL_AZIMUT};
     const tolTilt = {TOL_TILT};
 
+    // --- VARIABLES DE CONTROL SENSORIAL AVANZADO ---
     let azimutSuave = null;
     let tiltSuave = null;
-    const FACTOR_SUAVIDAD = 0.02; 
+    let ultimoAzimutRenderizado = null;
 
-    function filtrarAzimutExponencial(nuevoHeading) {{
+    // Amortiguación ultra-agresiva para ignorar ruidos electromagnéticos de la torre
+    const FACTOR_SUAVIDAD_AZIMUT = 0.005; 
+    const FACTOR_SUAVIDAD_TILT = 0.02;
+    
+    // Histéresis: Grados mínimos de cambio real requeridos para mover el display
+    const UMBRAL_ZONA_MUERTA = 1.0; 
+
+    function filtrarAzimutAvanzado(nuevoHeading) {{
         if (azimutSuave === null) {{
             azimutSuave = nuevoHeading;
+            ultimoAzimutRenderizado = Math.round(azimutSuave);
             return azimutSuave;
         }}
         
@@ -148,12 +154,23 @@ js_camera_and_sensors = f"""
         if (diferencia > 180) diferencia -= 360;
         if (diferencia < -180) diferencia += 360;
         
-        azimutSuave += diferencia * FACTOR_SUAVIDAD;
+        // Aplicamos el amortiguador ultra pesado
+        azimutSuave += diferencia * FACTOR_SUAVIDAD_AZIMUT;
         
         if (azimutSuave < 0) azimutSuave += 360;
         if (azimutSuave >= 360) azimutSuave -= 360;
         
-        return azimutSuave;
+        // Aplicamos Filtro de Histéresis (Zona muerta para evitar oscilación de 1 grado)
+        let candidatoRedondeado = Math.round(azimutSuave);
+        let deltaDisplay = candidatoRedondeado - ultimoAzimutRenderizado;
+        if (deltaDisplay > 180) deltaDisplay -= 360;
+        if (deltaDisplay < -180) deltaDisplay += 360;
+
+        if (Math.abs(deltaDisplay) >= UMBRAL_ZONA_MUERTA) {{
+            ultimoAzimutRenderizado = candidatoRedondeado;
+        }}
+        
+        return ultimoAzimutRenderizado;
     }}
 
     function filtrarTiltExponencial(nuevoBeta) {{
@@ -161,7 +178,7 @@ js_camera_and_sensors = f"""
             tiltSuave = nuevoBeta;
             return tiltSuave;
         }}
-        tiltSuave += (nuevoBeta - tiltSuave) * FACTOR_SUAVIDAD;
+        tiltSuave += (nuevoBeta - tiltSuave) * FACTOR_SUAVIDAD_TILT;
         return tiltSuave;
     }}
 
@@ -191,11 +208,9 @@ js_camera_and_sensors = f"""
         let beta = event.beta; 
         if (heading === null || heading === undefined || beta === null) return;
 
-        let azSuaveDeg = filtrarAzimutExponencial(heading);
-        let tltSuaveDeg = filtrarTiltExponencial(beta);
-        
-        let azimutReal = Math.round(azSuaveDeg);
-        let tiltReal = Math.round(tltSuaveDeg);
+        // Procesamiento con los nuevos filtros de grado industrial
+        let azimutReal = filtrarAzimutAvanzado(heading);
+        let tiltReal = Math.round(filtrarTiltExponencial(beta));
 
         let desvAzimut = azimutReal - tAzimut;
         if (desvAzimut > 180) desvAzimut -= 360;
@@ -242,7 +257,6 @@ js_camera_and_sensors = f"""
         
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         
-        // Estampar identificación en la esquina superior izquierda de la foto (Nodo + Sector)
         ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
         ctx.fillRect(20, 20, 250, 45);
         ctx.fillStyle = "#38bdf8";
