@@ -3,178 +3,253 @@ import pandas as pd
 
 # Configuración de la página para móviles
 st.set_page_config(
-    page_title="Entel QA - Buscador de Azimut",
+    page_title="Entel QA - Medidor en Terreno",
     page_icon="📡",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
 st.title("📡 Entel QA - Inspector de Antenas")
-st.write("Herramienta para verificación de Azimut y Tilt en tiempo real.")
+st.write("Verificación de Azimut y Tilt en tiempo real con captura de evidencia.")
 
-# 1. Cargar y limpiar base de datos de Entel
-@st.cache_data
-def cargar_datos():
-    try:
-        df = pd.read_excel("Azimt teorico.xlsx")
-        df.columns = df.columns.str.strip()
-        return df
-    except Exception as e:
-        st.error(f"Error al cargar 'Azimt teorico.xlsx': {e}")
-        return None
+# --- MEJORA 1: INGRESAR VALORES MANUALMENTE DESDE LA APP ---
+st.subheader("1. Parámetros Teóricos del Sector")
+col_input1, col_input2 = st.columns(2)
 
-df_antenas = cargar_datos()
+with col_input1:
+    azimut_teorico = st.number_input(
+        "Azimut Teórico (°)", 
+        min_value=0.0, 
+        max_value=360.0, 
+        value=120.0, 
+        step=1.0,
+        help="Ingrese el azimut teórico de diseño para el sector."
+    )
 
-if df_antenas is not None:
-    # 2. Selectores de Filtro en Terreno
-    sitios_disponibles = sorted(df_antenas['ID_Sitio'].dropna().unique())
-    id_sitio = st.selectbox("1. Seleccione el ID_Sitio del Nodo:", sitios_disponibles)
+with col_input2:
+    tilt_teorico = st.number_input(
+        "Tilt Teórico (°)", 
+        min_value=-90.0, 
+        max_value=90.0, 
+        value=-5.0, 
+        step=0.5,
+        help="Ingrese el tilt mecánico teórico de diseño para el sector."
+    )
+
+TOL_AZIMUT = 5.0
+TOL_TILT = 2.0
+
+st.info("💡 Coloque el celular de espaldas paralelo al panel de la antena usando el sistema de pinza.")
+
+# --- COMPONENTE COMPLETO: CÁMARA, SENSORES ESTABILIZADOS Y CAPTURA ---
+js_camera_and_sensors = f"""
+<div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: sans-serif; background: #0f172a; padding: 10px; border-radius: 16px;">
     
-    df_filtrado_sitio = df_antenas[df_antenas['ID_Sitio'] == id_sitio]
-    sectores_disponibles = sorted(df_filtrado_sitio['Sector'].dropna().unique())
-    sector = st.selectbox("2. Seleccione el Sector:", sectores_disponibles)
+    <!-- Contenedor de video limpio sin textos encima -->
+    <div style="position: relative; width: 100%; border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+        <video id="webcam" autoplay playsinline style="width: 100%; display: block;"></video>
+        <canvas id="snapshot" style="display: none; width: 100%; border-radius: 12px;"></canvas>
+        <div style="position: absolute; top: 20px; left: 20px; right: 20px; bottom: 20px; border: 1px dashed rgba(255,255,255,0.4); pointer-events: none; border-radius: 6px;"></div>
+    </div>
     
-    registro = df_filtrado_sitio[df_filtrado_sitio['Sector'] == sector].iloc[0]
-    azimut_teorico = float(registro['Azimut_Teorico'])
-    tilt_teorico = float(registro['Tilt_Mecanico_Teorico'])
-    
-    TOL_AZIMUT = 5.0
-    TOL_TILT = 2.0
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric(label="🎯 Azimut Teórico", value=f"{azimut_teorico}°")
-    with col2:
-        st.metric(label="📐 Tilt Teórico", value=f"{tilt_teorico}°")
+    <!-- Panel de datos ubicado ABAJO del video -->
+    <div id="data-panel" style="margin-top: 15px; background: #1e293b; color: white; padding: 15px; border-radius: 12px; border: 4px solid #64748b; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
         
-    st.info("💡 Coloque el celular de espaldas paralelo al panel de la antena usando el sistema de pinza.")
+        <div style="display: flex; justify-content: space-between; font-size: 13px; color: #94a3b8; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #334155; padding-bottom: 5px;">
+            <div>TEÓRICOS: AZ {azimut_teorico}° | TLT {tilt_teorico}°</div>
+            <div>TOLERANCIA: Az±5° | Tlt±2°</div>
+        </div>
 
-    # 3. Componente con bypass de permisos para Android/Chrome e iframes
-    js_camera_and_sensors = f"""
-    <div style="position: relative; width: 100%; max-width: 500px; margin: auto;">
-        <video id="webcam" autoplay playsinline style="width: 100%; border-radius: 10px; background: #000;"></video>
-        
-        <div id="hud-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 8px solid gray; border-radius: 10px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; padding: 15px; font-family: sans-serif; color: white; text-shadow: 2px 2px 4px #000; background: rgba(0,0,0,0.1);">
-            
-            <div style="display: flex; justify-content: space-between; font-size: 16px; font-weight: bold;">
-                <div>SITIO: {id_sitio}</div>
-                <div>SECTOR: {sector}</div>
+        <div style="display: flex; gap: 10px; justify-content: space-between; text-align: center;">
+            <div style="flex: 1; background: #0f172a; padding: 8px; border-radius: 8px;">
+                <div style="font-size: 11px; color: #38bdf8; font-weight: bold;">AZIMUT REAL</div>
+                <div style="font-size: 26px; font-weight: bold; margin: 2px 0;"><span id="lbl-azimut-real">--</span>°</div>
+                <div style="font-size: 11px; color: #cbd5e1;">Desv: <span id="lbl-azimut-desv">--</span>°</div>
             </div>
             
-            <div style="text-align: center; background: rgba(0,0,0,0.6); padding: 10px; border-radius: 8px;">
-                <div style="font-size: 24px; font-weight: bold; margin-bottom: 5px;">
-                    AZIMUT REAL: <span id="lbl-azimut-real">--</span>°
-                </div>
-                <div style="font-size: 18px; margin-bottom: 5px;">
-                    Desviación: <span id="lbl-azimut-desv">--</span>°
-                </div>
-                <div style="font-size: 20px; font-weight: bold; border-top: 1px solid #fff; padding-top: 5px; margin-top: 5px;">
-                    TILT REAL: <span id="lbl-tilt-real">--</span>°
-                </div>
-                <div style="font-size: 16px;">
-                    Desviación: <span id="lbl-tilt-desv">--</span>°
-                </div>
-            </div>
-            
-            <div id="lbl-status" style="text-align: center; font-size: 22px; font-weight: bold; padding: 8px; border-radius: 5px; background: rgba(128,128,128,0.8);">
-                ESPERANDO SENSORES
+            <div style="flex: 1; background: #0f172a; padding: 8px; border-radius: 8px;">
+                <div style="font-size: 11px; color: #38bdf8; font-weight: bold;">TILT REAL</div>
+                <div style="font-size: 26px; font-weight: bold; margin: 2px 0;"><span id="lbl-tilt-real">--</span>°</div>
+                <div style="font-size: 11px; color: #cbd5e1;">Desv: <span id="lbl-tilt-desv">--</span>°</div>
             </div>
         </div>
-    </div>
-    
-    <div style="text-align: center; margin-top: 15px;">
-        <button id="btn-permisos" style="padding: 12px 24px; font-size: 16px; font-weight: bold; background-color: #005A9C; color: white; border: none; border-radius: 5px; cursor: pointer; width: 100%;">
-            🔄 SOLICITAR ACCESO COMPLETO (SENSORES Y CÁMARA)
-        </button>
-    </div>
-
-    <script>
-        const video = document.getElementById('webcam');
-        const hud = document.getElementById('hud-overlay');
-        const btnPermisos = document.getElementById('btn-permisos');
         
-        const tAzimut = {azimut_teorico};
-        const tTilt = {tilt_teorico};
-        const tolAzimut = {TOL_AZIMUT};
-        const tolTilt = {TOL_TILT};
+        <div id="lbl-status" style="margin-top: 12px; text-align: center; font-size: 16px; font-weight: bold; padding: 10px; border-radius: 8px; background: #475569; letter-spacing: 1px;">
+            ESPERANDO SENSORES
+        </div>
+    </div>
+</div>
 
-        async function iniciarCamara() {{
-            try {{
-                const stream = await navigator.mediaDevices.getUserMedia({{
-                    video: {{ facingMode: "environment" }},
-                    audio: false
-                }});
-                video.srcObject = stream;
-            }} catch (err) {{
-                console.error("Error al acceder a la cámara trasera: ", err);
-            }}
+<!-- Controles del Sistema -->
+<div style="max-width: 500px; margin: 15px auto 0 auto; display: flex; flex-direction: column; gap: 10px;">
+    <button id="btn-permisos" style="padding: 14px 24px; font-size: 16px; font-weight: bold; background-color: #005A9C; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.15);">
+        🔄 SOLICITAR ACCESO (SENSORES Y CÁMARA)
+    </button>
+    
+    <button id="btn-capturar" style="display: none; padding: 14px 24px; font-size: 16px; font-weight: bold; background-color: #e11d48; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.15);">
+        📸 CAPTURAR EVIDENCIA QA
+    </button>
+</div>
+
+<!-- Elemento oculto para descarga automática de imagen -->
+<a id="download-link" style="display: none;"></a>
+
+<script>
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('snapshot');
+    const dataPanel = document.getElementById('data-panel');
+    const btnPermisos = document.getElementById('btn-permisos');
+    const btnCapturar = document.getElementById('btn-capturar');
+    const downloadLink = document.getElementById('download-link');
+    
+    const tAzimut = {azimut_teorico};
+    const tTilt = {tilt_teorico};
+    const tolAzimut = {TOL_AZIMUT};
+    const tolTilt = {TOL_TILT};
+
+    // --- FILTRO ESTABILIZADOR (MEDIA MÓVIL) ---
+    const TAMANO_FILTRO = 15;
+    let lecturasAzimut = [];
+
+    function filtrarAzimut(nuevoValor) {{
+        lecturasAzimut.push(nuevoValor);
+        if (lecturasAzimut.length > TAMANO_FILTRO) {{
+            lecturasAzimut.shift();
         }}
+        
+        let sumSin = 0;
+        let sumCos = 0;
+        for (let i = 0; i < lecturasAzimut.length; i++) {{
+            let rad = lecturasAzimut[i] * Math.PI / 180;
+            sumSin += Math.sin(rad);
+            sumCos += Math.cos(rad);
+        }}
+        
+        let avgRad = Math.atan2(sumSin, sumCos);
+        let avgDeg = avgRad * 180 / Math.PI;
+        if (avgDeg < 0) avgDeg += 360;
+        
+        return avgDeg;
+    }}
 
-        function procesarOrientacion(event) {{
-            // Forzar detección tanto de brújula corregida como absoluta por acelerómetro diferencial
-            let heading = event.webkitCompassHeading || event.alpha;
-            
-            // Si el evento arroja coordenadas absolutas de Android
+    async function iniciarCamara() {{
+        try {{
+            const stream = await navigator.mediaDevices.getUserMedia({{
+                video: {{ facingMode: "environment" }},
+                audio: false
+            }});
+            video.srcObject = stream;
+            btnCapturar.style.display = 'block'; // Mostrar botón de captura al iniciar cámara
+        }} catch (err) {{
+            console.error("Error cámara trasera: ", err);
+        }}
+    }}
+
+    function procesarOrientacion(event) {{
+        let heading = event.webkitCompassHeading;
+        
+        if (heading === undefined || heading === null) {{
             if (event.absolute === true && event.alpha !== null) {{
                 heading = 360 - event.alpha;
-            }}
-
-            let beta = event.beta; 
-
-            if (heading === null || heading === undefined || beta === null) return;
-
-            let azimutReal = Math.round(heading);
-            let tiltReal = Math.round(beta);
-
-            if (azimutReal < 0) azimutReal += 360;
-            if (azimutReal >= 360) azimutReal -= 360;
-
-            let desvAzimut = azimutReal - tAzimut;
-            if (desvAzimut > 180) desvAzimut -= 360;
-            if (desvAzimut < -180) desvAzimut += 360;
-            
-            let desvTilt = tiltReal - tTilt;
-
-            document.getElementById('lbl-azimut-real').innerText = azimutReal;
-            document.getElementById('lbl-tilt-real').innerText = tiltReal;
-            document.getElementById('lbl-azimut-desv').innerText = (desvAzimut > 0 ? "+" : "") + desvAzimut;
-            document.getElementById('lbl-tilt-desv').innerText = (desvTilt > 0 ? "+" : "") + desvTilt;
-
-            const azimutOk = Math.abs(desvAzimut) <= tolAzimut;
-            const tiltOk = Math.abs(desvTilt) <= tolTilt;
-
-            if (azimutOk && tiltOk) {{
-                hud.style.border = "8px solid #28a745";
-                document.getElementById('lbl-status').innerText = "✅ INSPECCIÓN CONFORME";
-                document.getElementById('lbl-status').style.background = "rgba(40, 167, 69, 0.9)";
             }} else {{
-                hud.style.border = "8px solid #dc3545";
-                document.getElementById('lbl-status').innerText = "❌ FUERA DE TOLERANCIA";
-                document.getElementById('lbl-status').style.background = "rgba(220, 53, 69, 0.9)";
+                heading = event.alpha;
             }}
         }}
 
-        btnPermisos.addEventListener('click', async () => {{
-            // Inicializar la cámara
-            await iniciarCamara();
-            
-            // Forzar escucha activa rompiendo la política restrictiva de origen
-            if (window.DeviceOrientationEvent) {{
-                // Intentar capturar evento estándar
-                window.addEventListener('deviceorientation', procesarOrientacion, true);
-                // Intentar capturar evento absoluto obligatorio en Chrome Mobile moderno
-                window.addEventListener('deviceorientationabsolute', procesarOrientacion, true);
-                
-                document.getElementById('lbl-status').innerText = "CONECTANDO CON SENSORES...";
-            }} else {{
-                alert("Tu dispositivo o navegador no expone la API de orientación.");
-            }}
-            
-            btnPermisos.style.display = 'none';
-        }});
-    </script>
-    """
-    # Se añade explícitamente una altura cómoda para evitar cortes en pantallas pequeñas
-    st.components.v1.html(js_camera_and_sensors, height=620, scrolling=False)
+        let beta = event.beta; 
 
+        if (heading === null || heading === undefined || beta === null) return;
+
+        let azimutEstabilizado = filtrarAzimut(heading);
+
+        let azimutReal = Math.round(azimutEstabilizado);
+        let tiltReal = Math.round(beta);
+
+        if (azimutReal < 0) azimutReal += 360;
+        if (azimutReal >= 360) azimutReal -= 360;
+
+        let desvAzimut = azimutReal - tAzimut;
+        if (desvAzimut > 180) desvAzimut -= 360;
+        if (desvAzimut < -180) desvAzimut += 360;
+        
+        let desvTilt = tiltReal - tTilt;
+
+        document.getElementById('lbl-azimut-real').innerText = azimutReal;
+        document.getElementById('lbl-tilt-real').innerText = tiltReal;
+        document.getElementById('lbl-azimut-desv').innerText = (desvAzimut > 0 ? "+" : "") + desvAzimut;
+        document.getElementById('lbl-tilt-desv').innerText = (desvTilt > 0 ? "+" : "") + desvTilt;
+
+        const azimutOk = Math.abs(desvAzimut) <= tolAzimut;
+        const tiltOk = Math.abs(desvTilt) <= tolTilt;
+
+        if (azimutOk && tiltOk) {{
+            dataPanel.style.borderColor = "#22c55e";
+            document.getElementById('lbl-status').innerText = "✅ INSPECCIÓN CONFORME";
+            document.getElementById('lbl-status').style.background = "#22c55e";
+        }} else {{
+            dataPanel.style.borderColor = "#ef4444";
+            document.getElementById('lbl-status').innerText = "❌ FUERA DE TOLERANCIA";
+            document.getElementById('lbl-status').style.background = "#ef4444";
+        }}
+    }}
+
+    btnPermisos.addEventListener('click', async () => {{
+        await iniciarCamara();
+        if (window.DeviceOrientationEvent) {{
+            window.addEventListener('deviceorientation', procesarOrientacion, true);
+            window.addEventListener('deviceorientationabsolute', procesarOrientacion, true);
+            document.getElementById('lbl-status').innerText = "CONECTANDO SENSORES...";
+        }} else {{
+            alert("No se detectan sensores.");
+        }}
+        btnPermisos.style.display = 'none';
+    }});
+
+    // --- NUEVA LÓGICA: CAPTURA DE PANTALLA PROCESADA ---
+    btnCapturar.addEventListener('click', () => {{
+        // Dimensionar canvas al tamaño del video real en ejecución
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        
+        // 1. Dibujar el cuadro exacto del video
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        // 2. Renderizar marcas de agua informativas directo en la foto capturada
+        ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+        ctx.fillRect(0, canvas.height - 160, canvas.width, 160);
+        
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 24px sans-serif";
+        ctx.fillText("EVIDENCIA DE INSPECCIÓN - ENTEL QA", 30, canvas.height - 110);
+        
+        const azReal = document.getElementById('lbl-azimut-real').innerText;
+        const tltReal = document.getElementById('lbl-tilt-real').innerText;
+        const status = document.getElementById('lbl-status').innerText;
+        
+        ctx.font = "20px sans-serif";
+        ctx.fillStyle = "#38bdf8";
+        ctx.fillText(`AZIMUT REAL: ${{azReal}}° (Teo: ${{tAzimut}}°)  |  TILT REAL: ${{tltReal}}° (Teo: ${{tTilt}}°)`, 30, canvas.height - 70);
+        
+        ctx.font = "bold 20px sans-serif";
+        ctx.fillStyle = status.includes("CONFORME") ? "#22c55e" : "#ef4444";
+        ctx.fillText(`ESTADO: ${{status}}`, 30, canvas.height - 30);
+        
+        // 3. Disparar la descarga automática del archivo PNG en el teléfono
+        try {{
+            const dataURL = canvas.toDataURL('image/png');
+            downloadLink.href = dataURL;
+            
+            // Nombre del archivo ordenado por fecha aproximada
+            const timestamp = new Date().getTime();
+            downloadLink.download = `Evidencia_QA_AZ${{azReal}}_TLT${{tltReal}}_${{timestamp}}.png`;
+            downloadLink.click();
+        }} catch(e) {{
+            alert("Para guardar el registro, por favor toma una captura de pantalla normal (Botón de encendido + bajar volumen).");
+        }}
+    }});
+</script>
+"""
+
+st.components.v1.html(js_camera_and_sensors, height=750, scrolling=False)
 st.caption("Desarrollado como MVP de Innovación para Procesos de Calidad y SST Entel.")
