@@ -48,7 +48,7 @@ TOL_TILT = 2.0
 
 st.info("💡 Coloque el celular de espaldas paralelo al panel de la antena usando el sistema de pinza.")
 
-# --- COMPONENTE INTEGRADO (CÁMARA, SENSORES Y CAPTURA) ---
+# --- COMPONENTE INTEGRADO OPTIMIZADO ---
 js_camera_and_sensors = f"""
 <div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: sans-serif; background: #0f172a; padding: 10px; border-radius: 16px;">
     
@@ -63,7 +63,7 @@ js_camera_and_sensors = f"""
         <div style="position: absolute; top: 20px; left: 20px; right: 20px; bottom: 20px; border: 1px dashed rgba(255,255,255,0.3); pointer-events: none; border-radius: 6px;"></div>
     </div>
     
-    <div id="data-panel" style="margin-top: 15px; background: #1e293b; color: white; padding: 15px; border-radius: 12px; border: 4px solid #64748b; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    <div id="data-panel" style="margin-top: 15px; background: #1e293b; color: white; padding: 15px; border-radius: 12px; border: 4px solid #ef4444; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: border-color 0.3s ease;">
         
         <div style="display: flex; justify-content: space-between; font-size: 13px; color: #94a3b8; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #334155; padding-bottom: 5px;">
             <div>SITIO: {sitio_nemonico} | AZ {azimut_teorico}° | TLT {tilt_teorico}°</div>
@@ -84,8 +84,8 @@ js_camera_and_sensors = f"""
             </div>
         </div>
         
-        <div id="lbl-status" style="margin-top: 12px; text-align: center; font-size: 16px; font-weight: bold; padding: 10px; border-radius: 8px; background: #475569; letter-spacing: 1px;">
-            ESPERANDO SENSORES
+        <div id="lbl-status" style="margin-top: 12px; text-align: center; font-size: 16px; font-weight: bold; padding: 10px; border-radius: 8px; background: #ef4444; letter-spacing: 1px;">
+            FUERA DE TOLERANCIA
         </div>
     </div>
 </div>
@@ -116,28 +116,27 @@ js_camera_and_sensors = f"""
     const tolAzimut = {TOL_AZIMUT};
     const tolTilt = {TOL_TILT};
 
-    const TAMANO_FILTRO = 15;
-    let lecturasAzimut = [];
+    // --- MEJORA SENSORES: FILTRO EXPONENCIAL PARA AZIMUT ESTABLE ---
+    let azimutSuave = null;
+    const FACTOR_SUAVIDAD = 0.08; // Menor valor = más estable y suave. Mayor valor = más rápido.
 
-    function filtrarAzimut(nuevoValor) {{
-        lecturasAzimut.push(nuevoValor);
-        if (lecturasAzimut.length > TAMANO_FILTRO) {{
-            lecturasAzimut.shift();
+    function filtrarAzimutExponencial(nuevoHeading) {{
+        if (azimutSuave === null) {{
+            azimutSuave = nuevoHeading;
+            return azimutSuave;
         }}
         
-        let sumSin = 0;
-        let sumCos = 0;
-        for (let i = 0; i < lecturasAzimut.length; i++) {{
-            let rad = lecturasAzimut[i] * Math.PI / 180;
-            sumSin += Math.sin(rad);
-            sumCos += Math.cos(rad);
-        }}
+        // Manejo del cruce de ángulo circular (entre 359° y 0°)
+        let diferencia = nuevoHeading - azimutSuave;
+        if (diferencia > 180) diferencia -= 360;
+        if (diferencia < -180) diferencia += 360;
         
-        let avgRad = Math.atan2(sumSin, sumCos);
-        let avgDeg = avgRad * 180 / Math.PI;
-        if (avgDeg < 0) avgDeg += 360;
+        azimutSuave += diferencia * FACTOR_SUAVIDAD;
         
-        return avgDeg;
+        if (azimutSuave < 0) azimutSuave += 360;
+        if (azimutSuave >= 360) azimutSuave -= 360;
+        
+        return azimutSuave;
     }}
 
     async function iniciarCamara() {{
@@ -166,35 +165,37 @@ js_camera_and_sensors = f"""
         let beta = event.beta; 
         if (heading === null || heading === undefined || beta === null) return;
 
-        let azimutEstabilizado = filtrarAzimut(heading);
-        let azimutReal = Math.round(azimutEstabilizado);
+        // Aplicamos el nuevo estabilizador de aguja magnética
+        let azSuaveDeg = filtrarAzimutExponencial(heading);
+        let azimutReal = Math.round(azSuaveDeg);
         let tiltReal = Math.round(beta);
 
-        if (azimutReal < 0) azimutReal += 360;
-        if (azimutReal >= 360) azimutReal -= 360;
-
+        // Calcular desviaciones exactas
         let desvAzimut = azimutReal - tAzimut;
         if (desvAzimut > 180) desvAzimut -= 360;
         if (desvAzimut < -180) desvAzimut += 360;
         
         let desvTilt = tiltReal - tTilt;
 
+        // Renderizar en UI
         document.getElementById('lbl-azimut-real').innerText = azimutReal;
         document.getElementById('lbl-tilt-real').innerText = tiltReal;
         document.getElementById('lbl-azimut-desv').innerText = (desvAzimut > 0 ? "+" : "") + desvAzimut;
         document.getElementById('lbl-tilt-desv').innerText = (desvTilt > 0 ? "+" : "") + desvTilt;
 
+        // --- CORRECCIÓN LÓGICA DE TOLERANCIA ---
         const azimutOk = Math.abs(desvAzimut) <= tolAzimut;
         const tiltOk = Math.abs(desvTilt) <= tolTilt;
+        const statusElement = document.getElementById('lbl-status');
 
         if (azimutOk && tiltOk) {{
             dataPanel.style.borderColor = "#22c55e";
-            document.getElementById('lbl-status').innerText = "✅ INSPECCIÓN CONFORME";
-            document.getElementById('lbl-status').style.background = "#22c55e";
+            statusElement.innerText = "✅ INSPECCIÓN CONFORME";
+            statusElement.style.background = "#22c55e";
         }} else {{
             dataPanel.style.borderColor = "#ef4444";
-            document.getElementById('lbl-status').innerText = "❌ FUERA DE TOLERANCIA";
-            document.getElementById('lbl-status').style.background = "#ef4444";
+            statusElement.innerText = "❌ FUERA DE TOLERANCIA";
+            statusElement.style.background = "#ef4444";
         }}
     }}
 
@@ -210,7 +211,6 @@ js_camera_and_sensors = f"""
         btnPermisos.style.display = 'none';
     }});
 
-    // --- CORRECCIÓN CLAVE DE CONFLICTO STRING LITERALS ---
     btnCapturar.addEventListener('click', () => {{
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
