@@ -2,14 +2,14 @@ import streamlit as st
 
 # Configuración de la página para dispositivos móviles
 st.set_page_config(
-    page_title="Entel QA - Medidor Profesional V6.0",
+    page_title="Entel QA - Medidor Ultra Estable V6.1",
     page_icon="📡",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-st.title("📡 Entel QA - Inspector Profesional V6.0")
-st.write("Medición de Azimut (Norte Verdadero / GPS) y Tilt con Filtro de Grado Industrial.")
+st.title("📡 Entel QA - Inspector Profesional V6.1")
+st.write("Medición de Azimut (Norte Verdadero / GPS) con Filtrado de Alta Estabilidad.")
 
 # --- PARÁMETROS DE INSPECCIÓN ---
 st.subheader("1. Identificación y Datos del Sitio")
@@ -46,7 +46,7 @@ with col_input2:
 
 # --- CALIBRACIÓN Y DECLINACIÓN ---
 st.subheader("2. Ajustes Finitos de Campo")
-st.caption("La app calcula la declinación magnética por GPS automáticamente. Usa este campo solo para corrección local por estructuras metálicas masivas.")
+st.caption("La app calcula la declinación magnética por GPS automáticamente. Usa este campo solo para corrección manual si lo deseas.")
 
 compensacion_manual = st.number_input(
     "Ajuste Fino Manual (°):",
@@ -63,8 +63,8 @@ TOL_TILT = 2.0
 texto_identificacion = f"{sitio_nemonico} - {sector_seleccionado.upper()}"
 nombre_archivo_sector = f"{sitio_nemonico}_{sector_seleccionado.replace(' ', '-')}"
 
-# --- COMPONENTE HTML5 / JS INTEGRADO V6.0 ---
-js_v6_engine = f"""
+# --- COMPONENTE HTML5 / JS INTEGRADO V6.1 ULTRA ESTABLE ---
+js_v61_engine = f"""
 <div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: system-ui, -apple-system, sans-serif; background: #0f172a; padding: 12px; border-radius: 16px;">
     
     <!-- CÁMARA Y OVERLAY -->
@@ -84,7 +84,7 @@ js_v6_engine = f"""
     <div id="data-panel" style="margin-top: 12px; background: #1e293b; color: white; padding: 14px; border-radius: 12px; border: 3px solid #ef4444; transition: all 0.3s ease;">
         
         <div style="display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #334155; padding-bottom: 6px;">
-            <div>NORTE VERDADERO (GPS + FILTRO)</div>
+            <div>NORTE VERDADERO (GPS + FILTRO HEAVY)</div>
             <div>TOL: Az±5° | Tlt±2°</div>
         </div>
 
@@ -111,14 +111,14 @@ js_v6_engine = f"""
 <!-- INSTRUCCIÓN DE CALIBRACIÓN DE SENSOR -->
 <div id="calib-box" style="max-width: 500px; margin: 10px auto; background: #0284c7; color: white; padding: 10px 14px; border-radius: 10px; font-size: 12px; display: flex; align-items: center; justify-content: space-between;">
     <div>
-        <strong>🔄 ¿Lectura inestable?</strong> Mueva el teléfono dibujando un <strong>"8"</strong> en el aire para calibrar el magnetómetro.
+        <strong>🔄 ¿Lectura desfasada?</strong> Mueva el teléfono dibujando un <strong>"8"</strong> en el aire para calibrar el magnetómetro.
     </div>
 </div>
 
 <!-- BOTONES DE ACCIÓN -->
 <div style="max-width: 500px; margin: 10px auto 0 auto; display: flex; flex-direction: column; gap: 10px;">
     <button id="btn-permisos" style="padding: 14px 24px; font-size: 15px; font-weight: bold; background-color: #005A9C; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.15);">
-        📡 ACTIVAR CÁMARA, GPS Y SENSORES V6.0
+        📡 ACTIVAR CÁMARA, GPS Y SENSORES V6.1
     </button>
     
     <button id="btn-capturar" style="display: none; padding: 14px 24px; font-size: 15px; font-weight: bold; background-color: #e11d48; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.15);">
@@ -147,15 +147,17 @@ js_v6_engine = f"""
 
     let declinacionCalculadaGPS = 0.0;
     
-    // FILTRO PASA-BAJO (MEDIA MÓVIL CON BUFFER CIRCULAR)
-    const TAMANO_BUFFER = 15;
-    let bufferAzimut = [];
-    let bufferTilt = [];
+    // VARIABLES DE AMORTIGUACIÓN HEAVY (Mismo algoritmo estable de la V5.7)
+    let azimutSuave = null;
+    let tiltSuave = null;
+    let ultimoAzimutRenderizado = null;
 
-    // Aproximación del Modelo Magnético Mundial (WMM) simplificado para declinación
+    // Factores ajustados para máxima firmeza
+    const FACTOR_SUAVIDAD_AZIMUT = 0.004; // Súper pesado, elimina el parpadeo de micro-vibración
+    const FACTOR_SUAVIDAD_TILT = 0.015;
+    const UMBRAL_ZONA_MUERTA = 1.2;      // Zona muerta: Ignora oscilaciones menores a 1.2 grados
+
     function calcularDeclinacionAproximada(lat, lon) {{
-        // Estimación simplificada de declinación magnética para Sudamérica / Chile
-        // En Chile va desde ~-4° (Norte/Centro) hasta ~-18° (Sur)
         let dec = -4.5 - ((lat + 33.4) * 0.45) - ((lon + 70.6) * 0.1);
         return parseFloat(dec.toFixed(1));
     }}
@@ -169,7 +171,7 @@ js_v6_engine = f"""
                 lblDecGps.innerText = (declinacionCalculadaGPS > 0 ? "+" : "") + declinacionCalculadaGPS + "°";
             }}, (err) => {{
                 lblDecGps.innerText = "Std (-4.5°)";
-                declinacionCalculadaGPS = -4.5; // Valor por defecto para Chile central si falla el GPS
+                declinacionCalculadaGPS = -4.5;
             }});
         }} else {{
             lblDecGps.innerText = "Sin GPS (-4.5°)";
@@ -177,36 +179,43 @@ js_v6_engine = f"""
         }}
     }}
 
-    function aplicarFiltroMediaMovil(nuevoValor, buffer) {{
-        buffer.push(nuevoValor);
-        if (buffer.length > TAMANO_BUFFER) {{
-            buffer.shift();
+    function filtrarAzimutEstable(nuevoHeading) {{
+        if (azimutSuave === null) {{
+            azimutSuave = nuevoHeading;
+            ultimoAzimutRenderizado = Math.round(azimutSuave);
+            return azimutSuave;
         }}
         
-        // Manejo especial de la discontinuidad del Azimut (359° -> 0°)
-        let senos = 0;
-        let cosenos = 0;
+        let diferencia = nuevoHeading - azimutSuave;
+        if (diferencia > 180) diferencia -= 360;
+        if (diferencia < -180) diferencia += 360;
         
-        for (let v of buffer) {{
-            let rad = v * Math.PI / 180;
-            senos += Math.sin(rad);
-            cosenos += Math.cos(rad);
+        // Amortiguación exponencial pesada
+        azimutSuave += diferencia * FACTOR_SUAVIDAD_AZIMUT;
+        
+        if (azimutSuave < 0) azimutSuave += 360;
+        if (azimutSuave >= 360) azimutSuave -= 360;
+        
+        let candidatoRedondeado = Math.round(azimutSuave);
+        let deltaDisplay = candidatoRedondeado - ultimoAzimutRenderizado;
+        if (deltaDisplay > 180) deltaDisplay -= 360;
+        if (deltaDisplay < -180) deltaDisplay += 360;
+
+        // Zona Muerta: Solo actualiza el número en pantalla si supera el umbral
+        if (Math.abs(deltaDisplay) >= UMBRAL_ZONA_MUERTA) {{
+            ultimoAzimutRenderizado = candidatoRedondeado;
         }}
         
-        let avgRad = Math.atan2(senos / buffer.length, cosenos / buffer.length);
-        let avgDeg = avgRad * 180 / Math.PI;
-        if (avgDeg < 0) avgDeg += 360;
-        
-        return Math.round(avgDeg);
+        return ultimoAzimutRenderizado;
     }}
 
-    function aplicarFiltroTilt(nuevoTilt) {{
-        bufferTilt.push(nuevoTilt);
-        if (bufferTilt.length > TAMANO_BUFFER) {{
-            bufferTilt.shift();
+    function filtrarTiltEstable(nuevoBeta) {{
+        if (tiltSuave === null) {{
+            tiltSuave = nuevoBeta;
+            return tiltSuave;
         }}
-        let suma = bufferTilt.reduce((a, b) => a + b, 0);
-        return Math.round(suma / bufferTilt.length);
+        tiltSuave += (nuevoBeta - tiltSuave) * FACTOR_SUAVIDAD_TILT;
+        return Math.round(tiltSuave);
     }}
 
     async function iniciarCamara() {{
@@ -235,16 +244,16 @@ js_v6_engine = f"""
         let beta = event.beta; 
         if (heading === null || heading === undefined || beta === null) return;
 
-        // 1. Filtrar lectura cruda del sensor
-        let azimutBrutoFiltrado = aplicarFiltroMediaMovil(heading, bufferAzimut);
+        // 1. Filtrar con amortiguador suave + zona muerta
+        let azimutBrutoEstable = filtrarAzimutEstable(heading);
         
-        // 2. Aplicar Declinación Magnética GPS + Offset Manual
-        let azimutVerdadero = azimutBrutoFiltrado + declinacionCalculadaGPS + offsetManual;
+        // 2. Aplicar Declinación GPS + Offset Manual
+        let azimutVerdadero = azimutBrutoEstable + declinacionCalculadaGPS + offsetManual;
         
         if (azimutVerdadero < 0) azimutVerdadero += 360;
         if (azimutVerdadero >= 360) azimutVerdadero -= 360;
 
-        let tiltReal = aplicarFiltroTilt(beta);
+        let tiltReal = filtrarTiltEstable(beta);
 
         // 3. Calcule desviaciones
         let desvAzimut = Math.round(azimutVerdadero - tAzimut);
@@ -280,7 +289,7 @@ js_v6_engine = f"""
         if (window.DeviceOrientationEvent) {{
             window.addEventListener('deviceorientation', procesarOrientacion, true);
             window.addEventListener('deviceorientationabsolute', procesarOrientacion, true);
-            document.getElementById('lbl-status').innerText = "ESTABILIZANDO FILTRO...";
+            document.getElementById('lbl-status').innerText = "CONECTANDO SENSORES...";
         }} else {{
             alert("Sensores no disponibles en este dispositivo.");
         }}
@@ -299,7 +308,7 @@ js_v6_engine = f"""
         ctx.fillRect(20, 20, 360, 45);
         ctx.fillStyle = "#38bdf8";
         ctx.font = "bold 15px sans-serif";
-        ctx.fillText(tIdentificacion + " (Dec: " + declinacionCalculadaGPS + "°)", 35, 48);
+        ctx.fillText(tIdentificacion + " (Dec GPS: " + declinacionCalculadaGPS + "°)", 35, 48);
         
         // Estampado inferior de datos
         ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
@@ -307,7 +316,7 @@ js_v6_engine = f"""
         
         ctx.fillStyle = "#ffffff";
         ctx.font = "bold 22px sans-serif";
-        ctx.fillText("EVIDENCIA DE INSPECCIÓN QA - V6.0", 30, canvas.height - 130);
+        ctx.fillText("EVIDENCIA DE INSPECCIÓN QA - V6.1", 30, canvas.height - 130);
         
         const azReal = document.getElementById('lbl-azimut-real').innerText;
         const tltReal = document.getElementById('lbl-tilt-real').innerText;
@@ -334,5 +343,5 @@ js_v6_engine = f"""
 </script>
 """
 
-st.components.v1.html(js_v6_engine, height=780, scrolling=False)
-st.caption("Desarrollado como MVP de Innovación para Procesos de Calidad y SST Entel - V6.0 Industrial.")
+st.components.v1.html(js_v61_engine, height=780, scrolling=False)
+st.caption("Desarrollado como MVP de Innovación para Procesos de Calidad Entel - V6.1 Ultra Estable.")
