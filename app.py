@@ -2,18 +2,15 @@ import streamlit as st
 
 # Configuración de la página para dispositivos móviles
 st.set_page_config(
-    page_title="Entel QA - Medidor Ultra Estable V6.1",
+    page_title="Entel QA - Medidor V6.2",
     page_icon="📡",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-st.title("📡 Entel QA - Inspector Profesional V6.1")
-st.write("Medición de Azimut (Norte Verdadero / GPS) con Filtrado de Alta Estabilidad.")
+st.title("📡 Entel QA - Inspector V6.2")
 
 # --- PARÁMETROS DE INSPECCIÓN ---
-st.subheader("1. Identificación y Datos del Sitio")
-
 col_id1, col_id2 = st.columns([2, 1])
 
 with col_id1:
@@ -45,16 +42,13 @@ with col_input2:
     )
 
 # --- CALIBRACIÓN Y DECLINACIÓN ---
-st.subheader("2. Ajustes Finitos de Campo")
-st.caption("La app calcula la declinación magnética por GPS automáticamente. Usa este campo solo para corrección manual si lo deseas.")
-
 compensacion_manual = st.number_input(
     "Ajuste Fino Manual (°):",
     min_value=-90.0,
     max_value=90.0,
     value=0.0,
     step=0.5,
-    help="Sume o reste grados para ajustar la aguja si está muy cerca de masas metálicas."
+    help="Ajuste manual para corregir desvíos locales por metal."
 )
 
 TOL_AZIMUT = 5.0
@@ -63,65 +57,56 @@ TOL_TILT = 2.0
 texto_identificacion = f"{sitio_nemonico} - {sector_seleccionado.upper()}"
 nombre_archivo_sector = f"{sitio_nemonico}_{sector_seleccionado.replace(' ', '-')}"
 
-# --- COMPONENTE HTML5 / JS INTEGRADO V6.1 ULTRA ESTABLE ---
-js_v61_engine = f"""
-<div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: system-ui, -apple-system, sans-serif; background: #0f172a; padding: 12px; border-radius: 16px;">
+# --- COMPONENTE HTML5 / JS INTEGRADO V6.2 COMPACTO ---
+js_v62_engine = f"""
+<div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: system-ui, -apple-system, sans-serif; background: #0f172a; padding: 8px; border-radius: 12px;">
     
-    <!-- CÁMARA Y OVERLAY -->
-    <div style="position: relative; width: 100%; border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 4px 12px rgba(0,0,0,0.4);">
-        <video id="webcam" autoplay playsinline style="width: 100%; display: block;"></video>
-        <canvas id="snapshot" style="display: none; width: 100%; border-radius: 12px;"></canvas>
+    <div style="position: relative; width: 100%; border-radius: 10px; overflow: hidden; background: #000;">
+        <video id="webcam" autoplay playsinline style="width: 100%; display: block; max-height: 250px; object-fit: cover;"></video>
+        <canvas id="snapshot" style="display: none; width: 100%; border-radius: 10px;"></canvas>
         
-        <!-- INSIGNIA SUPERIOR CON DATOS DE UBICACIÓN -->
-        <div style="position: absolute; top: 12px; left: 12px; background: rgba(15, 23, 42, 0.85); color: #38bdf8; padding: 6px 12px; border-radius: 8px; font-weight: bold; font-size: 12px; border: 1px solid rgba(56, 189, 248, 0.3); backdrop-filter: blur(4px);">
+        <div style="position: absolute; top: 8px; left: 8px; background: rgba(15, 23, 42, 0.85); color: #38bdf8; padding: 4px 8px; border-radius: 6px; font-weight: bold; font-size: 11px; border: 1px solid rgba(56, 189, 248, 0.3);">
             {texto_identificacion} | Dec GPS: <span id="lbl-dec-gps">Calculando...</span>
         </div>
-        
-        <div style="position: absolute; top: 20px; left: 20px; right: 20px; bottom: 20px; border: 1px dashed rgba(255,255,255,0.25); pointer-events: none; border-radius: 8px;"></div>
     </div>
     
-    <!-- PANEL PRINCIPAL DE LECTURAS -->
-    <div id="data-panel" style="margin-top: 12px; background: #1e293b; color: white; padding: 14px; border-radius: 12px; border: 3px solid #ef4444; transition: all 0.3s ease;">
+    <div id="data-panel" style="margin-top: 8px; background: #1e293b; color: white; padding: 10px; border-radius: 10px; border: 2px solid #ef4444;">
         
-        <div style="display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #334155; padding-bottom: 6px;">
-            <div>NORTE VERDADERO (GPS + FILTRO HEAVY)</div>
+        <div style="display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; font-weight: bold; margin-bottom: 6px;">
+            <div>NORTE VERDADERO (GPS)</div>
             <div>TOL: Az±5° | Tlt±2°</div>
         </div>
 
-        <div style="display: flex; gap: 10px; justify-content: space-between; text-align: center;">
-            <div style="flex: 1; background: #0f172a; padding: 10px; border-radius: 8px;">
-                <div style="font-size: 10px; color: #38bdf8; font-weight: bold; letter-spacing: 0.5px;">AZIMUT REAL</div>
-                <div style="font-size: 28px; font-weight: 800; margin: 2px 0;"><span id="lbl-azimut-real">--</span>°</div>
-                <div style="font-size: 11px; color: #cbd5e1;">Desv: <span id="lbl-azimut-desv">--</span>°</div>
+        <div style="display: flex; gap: 8px; justify-content: space-between; text-align: center;">
+            <div style="flex: 1; background: #0f172a; padding: 6px; border-radius: 6px;">
+                <div style="font-size: 9px; color: #38bdf8; font-weight: bold;">AZIMUT REAL</div>
+                <div style="font-size: 22px; font-weight: 800; margin: 0;"><span id="lbl-azimut-real">--</span>°</div>
+                <div style="font-size: 10px; color: #cbd5e1;">Desv: <span id="lbl-azimut-desv">--</span>°</div>
             </div>
             
-            <div style="flex: 1; background: #0f172a; padding: 10px; border-radius: 8px;">
-                <div style="font-size: 10px; color: #38bdf8; font-weight: bold; letter-spacing: 0.5px;">TILT REAL</div>
-                <div style="font-size: 28px; font-weight: 800; margin: 2px 0;"><span id="lbl-tilt-real">--</span>°</div>
-                <div style="font-size: 11px; color: #cbd5e1;">Desv: <span id="lbl-tilt-desv">--</span>°</div>
+            <div style="flex: 1; background: #0f172a; padding: 6px; border-radius: 6px;">
+                <div style="font-size: 9px; color: #38bdf8; font-weight: bold;">TILT REAL</div>
+                <div style="font-size: 22px; font-weight: 800; margin: 0;"><span id="lbl-tilt-real">--</span>°</div>
+                <div style="font-size: 10px; color: #cbd5e1;">Desv: <span id="lbl-tilt-desv">--</span>°</div>
             </div>
         </div>
         
-        <div id="lbl-status" style="margin-top: 10px; text-align: center; font-size: 15px; font-weight: bold; padding: 8px; border-radius: 8px; background: #ef4444; letter-spacing: 0.5px;">
+        <div id="lbl-status" style="margin-top: 6px; text-align: center; font-size: 13px; font-weight: bold; padding: 6px; border-radius: 6px; background: #ef4444;">
             INICIALIZANDO SENSORES...
         </div>
     </div>
 </div>
 
-<!-- INSTRUCCIÓN DE CALIBRACIÓN DE SENSOR -->
-<div id="calib-box" style="max-width: 500px; margin: 10px auto; background: #0284c7; color: white; padding: 10px 14px; border-radius: 10px; font-size: 12px; display: flex; align-items: center; justify-content: space-between;">
-    <div>
-        <strong>🔄 ¿Lectura desfasada?</strong> Mueva el teléfono dibujando un <strong>"8"</strong> en el aire para calibrar el magnetómetro.
-    </div>
+<div id="calib-box" style="max-width: 500px; margin: 6px auto; background: #0284c7; color: white; padding: 6px 10px; border-radius: 8px; font-size: 11px;">
+    🔄 <strong>¿Lectura inestable?</strong> Mueva el teléfono en <strong>"8"</strong> en el aire para calibrar.
 </div>
 
-<!-- BOTONES DE ACCIÓN -->
-<div style="max-width: 500px; margin: 10px auto 0 auto; display: flex; flex-direction: column; gap: 10px;">
-    <button id="btn-permisos" style="padding: 14px 24px; font-size: 15px; font-weight: bold; background-color: #005A9C; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.15);">
-        📡 ACTIVAR CÁMARA, GPS Y SENSORES V6.1
+<div style="max-width: 500px; margin: 6px auto 0 auto; display: flex; flex-direction: column; gap: 6px;">
+    <button id="btn-permisos" style="padding: 12px; font-size: 14px; font-weight: bold; background-color: #005A9C; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%;">
+        📡 ACTIVAR CÁMARA, GPS Y SENSORES
     </button>
     
-    <button id="btn-capturar" style="display: none; padding: 14px 24px; font-size: 15px; font-weight: bold; background-color: #e11d48; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.15);">
+    <button id="btn-capturar" style="display: none; padding: 14px; font-size: 15px; font-weight: bold; background-color: #e11d48; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
         📸 CAPTURAR EVIDENCIA QA
     </button>
 </div>
@@ -146,16 +131,13 @@ js_v61_engine = f"""
     const offsetManual = {compensacion_manual};
 
     let declinacionCalculadaGPS = 0.0;
-    
-    // VARIABLES DE AMORTIGUACIÓN HEAVY (Mismo algoritmo estable de la V5.7)
     let azimutSuave = null;
     let tiltSuave = null;
     let ultimoAzimutRenderizado = null;
 
-    // Factores ajustados para máxima firmeza
-    const FACTOR_SUAVIDAD_AZIMUT = 0.004; // Súper pesado, elimina el parpadeo de micro-vibración
+    const FACTOR_SUAVIDAD_AZIMUT = 0.004;
     const FACTOR_SUAVIDAD_TILT = 0.015;
-    const UMBRAL_ZONA_MUERTA = 1.2;      // Zona muerta: Ignora oscilaciones menores a 1.2 grados
+    const UMBRAL_ZONA_MUERTA = 1.2;
 
     function calcularDeclinacionAproximada(lat, lon) {{
         let dec = -4.5 - ((lat + 33.4) * 0.45) - ((lon + 70.6) * 0.1);
@@ -190,7 +172,6 @@ js_v61_engine = f"""
         if (diferencia > 180) diferencia -= 360;
         if (diferencia < -180) diferencia += 360;
         
-        // Amortiguación exponencial pesada
         azimutSuave += diferencia * FACTOR_SUAVIDAD_AZIMUT;
         
         if (azimutSuave < 0) azimutSuave += 360;
@@ -201,7 +182,6 @@ js_v61_engine = f"""
         if (deltaDisplay > 180) deltaDisplay -= 360;
         if (deltaDisplay < -180) deltaDisplay += 360;
 
-        // Zona Muerta: Solo actualiza el número en pantalla si supera el umbral
         if (Math.abs(deltaDisplay) >= UMBRAL_ZONA_MUERTA) {{
             ultimoAzimutRenderizado = candidatoRedondeado;
         }}
@@ -244,10 +224,7 @@ js_v61_engine = f"""
         let beta = event.beta; 
         if (heading === null || heading === undefined || beta === null) return;
 
-        // 1. Filtrar con amortiguador suave + zona muerta
         let azimutBrutoEstable = filtrarAzimutEstable(heading);
-        
-        // 2. Aplicar Declinación GPS + Offset Manual
         let azimutVerdadero = azimutBrutoEstable + declinacionCalculadaGPS + offsetManual;
         
         if (azimutVerdadero < 0) azimutVerdadero += 360;
@@ -255,7 +232,6 @@ js_v61_engine = f"""
 
         let tiltReal = filtrarTiltEstable(beta);
 
-        // 3. Calcule desviaciones
         let desvAzimut = Math.round(azimutVerdadero - tAzimut);
         if (desvAzimut > 180) desvAzimut -= 360;
         if (desvAzimut < -180) desvAzimut += 360;
@@ -316,7 +292,7 @@ js_v61_engine = f"""
         
         ctx.fillStyle = "#ffffff";
         ctx.font = "bold 22px sans-serif";
-        ctx.fillText("EVIDENCIA DE INSPECCIÓN QA - V6.1", 30, canvas.height - 130);
+        ctx.fillText("EVIDENCIA DE INSPECCIÓN QA - V6.2", 30, canvas.height - 130);
         
         const azReal = document.getElementById('lbl-azimut-real').innerText;
         const tltReal = document.getElementById('lbl-tilt-real').innerText;
@@ -343,5 +319,6 @@ js_v61_engine = f"""
 </script>
 """
 
-st.components.v1.html(js_v61_engine, height=780, scrolling=False)
-st.caption("Desarrollado como MVP de Innovación para Procesos de Calidad Entel - V6.1 Ultra Estable.")
+# Aumentamos la altura de renderizado a 880px para dar suficiente margen
+st.components.v1.html(js_v62_engine, height=880, scrolling=False)
+st.caption("Desarrollado para Procesos de Calidad Entel - V6.2 Compacta.")
