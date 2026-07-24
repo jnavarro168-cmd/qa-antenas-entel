@@ -2,13 +2,13 @@ import streamlit as st
 
 # Configuración de la página para dispositivos móviles
 st.set_page_config(
-    page_title="Entel QA - Medidor V6.2",
+    page_title="Entel QA - Medidor V6.3",
     page_icon="📡",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-st.title("📡 Entel QA - Inspector V6.2")
+st.title("📡 Entel QA - Inspector V6.3")
 
 # --- PARÁMETROS DE INSPECCIÓN ---
 col_id1, col_id2 = st.columns([2, 1])
@@ -57,8 +57,8 @@ TOL_TILT = 2.0
 texto_identificacion = f"{sitio_nemonico} - {sector_seleccionado.upper()}"
 nombre_archivo_sector = f"{sitio_nemonico}_{sector_seleccionado.replace(' ', '-')}"
 
-# --- COMPONENTE HTML5 / JS INTEGRADO V6.2 COMPACTO ---
-js_v62_engine = f"""
+# --- COMPONENTE HTML5 / JS INTEGRADO V6.3 CON SENSOR uT ---
+js_v63_engine = f"""
 <div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: system-ui, -apple-system, sans-serif; background: #0f172a; padding: 8px; border-radius: 12px;">
     
     <div style="position: relative; width: 100%; border-radius: 10px; overflow: hidden; background: #000;">
@@ -67,6 +67,10 @@ js_v62_engine = f"""
         
         <div style="position: absolute; top: 8px; left: 8px; background: rgba(15, 23, 42, 0.85); color: #38bdf8; padding: 4px 8px; border-radius: 6px; font-weight: bold; font-size: 11px; border: 1px solid rgba(56, 189, 248, 0.3);">
             {texto_identificacion} | Dec GPS: <span id="lbl-dec-gps">Calculando...</span>
+        </div>
+
+        <div id="badge-ut" style="position: absolute; top: 8px; right: 8px; background: rgba(15, 23, 42, 0.85); color: #22c55e; padding: 4px 8px; border-radius: 6px; font-weight: bold; font-size: 11px; border: 1px solid rgba(34, 197, 94, 0.3);">
+            🧲 Campo: <span id="lbl-ut-val">--</span> µT
         </div>
     </div>
     
@@ -98,7 +102,7 @@ js_v62_engine = f"""
 </div>
 
 <div id="calib-box" style="max-width: 500px; margin: 6px auto; background: #0284c7; color: white; padding: 6px 10px; border-radius: 8px; font-size: 11px;">
-    🔄 <strong>¿Lectura inestable?</strong> Mueva el teléfono en <strong>"8"</strong> en el aire para calibrar.
+    <span id="calib-msg">🔄 <strong>¿Lectura inestable?</strong> Mueva el teléfono en <strong>"8"</strong> en el aire para calibrar.</span>
 </div>
 
 <div style="max-width: 500px; margin: 6px auto 0 auto; display: flex; flex-direction: column; gap: 6px;">
@@ -121,6 +125,10 @@ js_v62_engine = f"""
     const btnCapturar = document.getElementById('btn-capturar');
     const downloadLink = document.getElementById('download-link');
     const lblDecGps = document.getElementById('lbl-dec-gps');
+    const lblUtVal = document.getElementById('lbl-ut-val');
+    const badgeUt = document.getElementById('badge-ut');
+    const calibBox = document.getElementById('calib-box');
+    const calibMsg = document.getElementById('calib-msg');
     
     const tIdentificacion = "{texto_identificacion}";
     const tNombreArchivo = "{nombre_archivo_sector}";
@@ -158,6 +166,37 @@ js_v62_engine = f"""
         }} else {{
             lblDecGps.innerText = "Sin GPS (-4.5°)";
             declinacionCalculadaGPS = -4.5;
+        }}
+    }}
+
+    function iniciarSensorMagnetometro() {{
+        // API Magnetometer nativa para medir intensidad de microteslas
+        if ('Magnetometer' in window) {{
+            try {{
+                const magSensor = new Magnetometer({{ frequency: 10 }});
+                magSensor.addEventListener('reading', () => {{
+                    let ut = Math.sqrt(magSensor.x**2 + magSensor.y**2 + magSensor.z**2);
+                    let utFixed = Math.round(ut);
+                    lblUtVal.innerText = utFixed;
+
+                    if (utFixed > 75 || utFixed < 20) {{
+                        badgeUt.style.color = "#ef4444";
+                        badgeUt.style.borderColor = "rgba(239, 68, 68, 0.5)";
+                        calibBox.style.background = "#b91c1c";
+                        calibMsg.innerHTML = "⚠️ <strong>Alta interferencia metálica (" + utFixed + " µT).</strong> Aléjese unos cm de la estructura o recalibre en '8'.";
+                    }} else {{
+                        badgeUt.style.color = "#22c55e";
+                        badgeUt.style.borderColor = "rgba(34, 197, 94, 0.3)";
+                        calibBox.style.background = "#0284c7";
+                        calibMsg.innerHTML = "🔄 <strong>¿Lectura inestable?</strong> Mueva el teléfono en <strong>'8'</strong> en el aire para calibrar.";
+                    }}
+                }});
+                magSensor.start();
+            }} catch (e) {{
+                lblUtVal.innerText = "OK";
+            }}
+        }} else {{
+            lblUtVal.innerText = "Std";
         }}
     }}
 
@@ -261,6 +300,7 @@ js_v62_engine = f"""
     btnPermisos.addEventListener('click', async () => {{
         await iniciarCamara();
         obtenerGPS();
+        iniciarSensorMagnetometro();
         
         if (window.DeviceOrientationEvent) {{
             window.addEventListener('deviceorientation', procesarOrientacion, true);
@@ -281,10 +321,10 @@ js_v62_engine = f"""
         
         // Estampado superior
         ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
-        ctx.fillRect(20, 20, 360, 45);
+        ctx.fillRect(20, 20, 380, 45);
         ctx.fillStyle = "#38bdf8";
         ctx.font = "bold 15px sans-serif";
-        ctx.fillText(tIdentificacion + " (Dec GPS: " + declinacionCalculadaGPS + "°)", 35, 48);
+        ctx.fillText(tIdentificacion + " (Dec GPS: " + declinacionCalculadaGPS + "° | " + lblUtVal.innerText + "µT)", 35, 48);
         
         // Estampado inferior de datos
         ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
@@ -292,7 +332,7 @@ js_v62_engine = f"""
         
         ctx.fillStyle = "#ffffff";
         ctx.font = "bold 22px sans-serif";
-        ctx.fillText("EVIDENCIA DE INSPECCIÓN QA - V6.2", 30, canvas.height - 130);
+        ctx.fillText("EVIDENCIA DE INSPECCIÓN QA - V6.3", 30, canvas.height - 130);
         
         const azReal = document.getElementById('lbl-azimut-real').innerText;
         const tltReal = document.getElementById('lbl-tilt-real').innerText;
@@ -319,6 +359,5 @@ js_v62_engine = f"""
 </script>
 """
 
-# Aumentamos la altura de renderizado a 880px para dar suficiente margen
-st.components.v1.html(js_v62_engine, height=880, scrolling=False)
-st.caption("Desarrollado para Procesos de Calidad Entel - V6.2 Compacta.")
+st.components.v1.html(js_v63_engine, height=880, scrolling=False)
+st.caption("Desarrollado para Procesos de Calidad Entel - V6.3 con Sensor EMI (µT).")
