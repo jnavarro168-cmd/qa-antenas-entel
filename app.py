@@ -2,13 +2,14 @@ import streamlit as st
 
 # Configuración de la página para dispositivos móviles
 st.set_page_config(
-    page_title="Entel QA - Medidor V6.3",
+    page_title="Entel QA - Medidor V6.4",
     page_icon="📡",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-st.title("📡 Entel QA - Inspector V6.3")
+st.title("📡 Entel QA - Inspector V6.4")
+st.write("Medidor de Azimut/Tilt con Control de Precisión de Sensores.")
 
 # --- PARÁMETROS DE INSPECCIÓN ---
 col_id1, col_id2 = st.columns([2, 1])
@@ -57,8 +58,8 @@ TOL_TILT = 2.0
 texto_identificacion = f"{sitio_nemonico} - {sector_seleccionado.upper()}"
 nombre_archivo_sector = f"{sitio_nemonico}_{sector_seleccionado.replace(' ', '-')}"
 
-# --- COMPONENTE HTML5 / JS INTEGRADO V6.3 CON SENSOR uT ---
-js_v63_engine = f"""
+# --- COMPONENTE HTML5 / JS INTEGRADO V6.4 CON VERIFICACIÓN DE PRECISIÓN ---
+js_v64_engine = f"""
 <div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: system-ui, -apple-system, sans-serif; background: #0f172a; padding: 8px; border-radius: 12px;">
     
     <div style="position: relative; width: 100%; border-radius: 10px; overflow: hidden; background: #000;">
@@ -69,8 +70,8 @@ js_v63_engine = f"""
             {texto_identificacion} | Dec GPS: <span id="lbl-dec-gps">Calculando...</span>
         </div>
 
-        <div id="badge-ut" style="position: absolute; top: 8px; right: 8px; background: rgba(15, 23, 42, 0.85); color: #22c55e; padding: 4px 8px; border-radius: 6px; font-weight: bold; font-size: 11px; border: 1px solid rgba(34, 197, 94, 0.3);">
-            🧲 Campo: <span id="lbl-ut-val">--</span> µT
+        <div id="badge-accuracy" style="position: absolute; top: 8px; right: 8px; background: rgba(15, 23, 42, 0.85); color: #eab308; padding: 4px 8px; border-radius: 6px; font-weight: bold; font-size: 11px; border: 1px solid rgba(234, 179, 8, 0.3);">
+            <span id="lbl-acc-icon">🟡</span> <span id="lbl-acc-text">Calibrando...</span>
         </div>
     </div>
     
@@ -102,12 +103,12 @@ js_v63_engine = f"""
 </div>
 
 <div id="calib-box" style="max-width: 500px; margin: 6px auto; background: #0284c7; color: white; padding: 6px 10px; border-radius: 8px; font-size: 11px;">
-    <span id="calib-msg">🔄 <strong>¿Lectura inestable?</strong> Mueva el teléfono en <strong>"8"</strong> en el aire para calibrar.</span>
+    <span id="calib-msg">🔄 <strong>Verificando calibración:</strong> Mueva el teléfono en <strong>"8"</strong> en el aire para asegurar precisión máxima.</span>
 </div>
 
 <div style="max-width: 500px; margin: 6px auto 0 auto; display: flex; flex-direction: column; gap: 6px;">
     <button id="btn-permisos" style="padding: 12px; font-size: 14px; font-weight: bold; background-color: #005A9C; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%;">
-        📡 ACTIVAR CÁMARA, GPS Y SENSORES
+        📡 ACTIVAR CÁMARA, GPS Y SENSORES V6.4
     </button>
     
     <button id="btn-capturar" style="display: none; padding: 14px; font-size: 15px; font-weight: bold; background-color: #e11d48; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
@@ -125,8 +126,11 @@ js_v63_engine = f"""
     const btnCapturar = document.getElementById('btn-capturar');
     const downloadLink = document.getElementById('download-link');
     const lblDecGps = document.getElementById('lbl-dec-gps');
-    const lblUtVal = document.getElementById('lbl-ut-val');
-    const badgeUt = document.getElementById('badge-ut');
+    
+    const badgeAccuracy = document.getElementById('badge-accuracy');
+    const lblAccIcon = document.getElementById('lbl-acc-icon');
+    const lblAccText = document.getElementById('lbl-acc-text');
+    
     const calibBox = document.getElementById('calib-box');
     const calibMsg = document.getElementById('calib-msg');
     
@@ -142,6 +146,8 @@ js_v63_engine = f"""
     let azimutSuave = null;
     let tiltSuave = null;
     let ultimoAzimutRenderizado = null;
+    
+    let conteoEstabilidad = 0;
 
     const FACTOR_SUAVIDAD_AZIMUT = 0.004;
     const FACTOR_SUAVIDAD_TILT = 0.015;
@@ -169,34 +175,26 @@ js_v63_engine = f"""
         }}
     }}
 
-    function iniciarSensorMagnetometro() {{
-        // API Magnetometer nativa para medir intensidad de microteslas
-        if ('Magnetometer' in window) {{
-            try {{
-                const magSensor = new Magnetometer({{ frequency: 10 }});
-                magSensor.addEventListener('reading', () => {{
-                    let ut = Math.sqrt(magSensor.x**2 + magSensor.y**2 + magSensor.z**2);
-                    let utFixed = Math.round(ut);
-                    lblUtVal.innerText = utFixed;
-
-                    if (utFixed > 75 || utFixed < 20) {{
-                        badgeUt.style.color = "#ef4444";
-                        badgeUt.style.borderColor = "rgba(239, 68, 68, 0.5)";
-                        calibBox.style.background = "#b91c1c";
-                        calibMsg.innerHTML = "⚠️ <strong>Alta interferencia metálica (" + utFixed + " µT).</strong> Aléjese unos cm de la estructura o recalibre en '8'.";
-                    }} else {{
-                        badgeUt.style.color = "#22c55e";
-                        badgeUt.style.borderColor = "rgba(34, 197, 94, 0.3)";
-                        calibBox.style.background = "#0284c7";
-                        calibMsg.innerHTML = "🔄 <strong>¿Lectura inestable?</strong> Mueva el teléfono en <strong>'8'</strong> en el aire para calibrar.";
-                    }}
-                }});
-                magSensor.start();
-            }} catch (e) {{
-                lblUtVal.innerText = "OK";
-            }}
+    function actualizarEstadoPrecision(accuracyValue, statusText) {{
+        if (accuracyValue === "HIGH" || accuracyValue === "OK") {{
+            lblAccIcon.innerText = "🟢";
+            lblAccText.innerText = "Sensor Calibrado";
+            badgeAccuracy.style.color = "#22c55e";
+            badgeAccuracy.style.borderColor = "rgba(34, 197, 94, 0.3)";
+            calibBox.style.background = "#0284c7";
+            calibMsg.innerHTML = "✅ <strong>Sensor listo:</strong> Si nota desvío local, mueva en <strong>'8'</strong> en el aire.";
+        }} else if (accuracyValue === "MEDIUM") {{
+            lblAccIcon.innerText = "🟡";
+            lblAccText.innerText = "Ajustando...";
+            badgeAccuracy.style.color = "#eab308";
+            badgeAccuracy.style.borderColor = "rgba(234, 179, 8, 0.3)";
         }} else {{
-            lblUtVal.innerText = "Std";
+            lblAccIcon.innerText = "🔴";
+            lblAccText.innerText = "Mueva en '8'";
+            badgeAccuracy.style.color = "#ef4444";
+            badgeAccuracy.style.borderColor = "rgba(239, 68, 68, 0.3)";
+            calibBox.style.background = "#b91c1c";
+            calibMsg.innerHTML = "⚠️ <strong>Baja precisión detectada.</strong> Mueva el teléfono dibujando un <strong>'8'</strong> en el aire.";
         }}
     }}
 
@@ -223,6 +221,12 @@ js_v63_engine = f"""
 
         if (Math.abs(deltaDisplay) >= UMBRAL_ZONA_MUERTA) {{
             ultimoAzimutRenderizado = candidatoRedondeado;
+            conteoEstabilidad = 0; // Reinicia contador si se mueve
+        }} else {{
+            conteoEstabilidad++;
+            if (conteoEstabilidad > 30) {{
+                actualizarEstadoPrecision("HIGH");
+            }}
         }}
         
         return ultimoAzimutRenderizado;
@@ -251,6 +255,18 @@ js_v63_engine = f"""
     }}
 
     function procesarOrientacion(event) {{
+        // Detección de precisión nativa si el navegador la provee (iOS / Chrome spec)
+        if (event.webkitCompassAccuracy !== undefined && event.webkitCompassAccuracy !== null) {{
+            let acc = event.webkitCompassAccuracy;
+            if (acc > 0 && acc <= 15) {{
+                actualizarEstadoPrecision("HIGH");
+            }} else if (acc > 15 && acc <= 30) {{
+                actualizarEstadoPrecision("MEDIUM");
+            }} else if (acc > 30) {{
+                actualizarEstadoPrecision("LOW");
+            }}
+        }}
+
         let heading = event.webkitCompassHeading;
         if (heading === undefined || heading === null) {{
             if (event.absolute === true && event.alpha !== null) {{
@@ -300,12 +316,11 @@ js_v63_engine = f"""
     btnPermisos.addEventListener('click', async () => {{
         await iniciarCamara();
         obtenerGPS();
-        iniciarSensorMagnetometro();
         
         if (window.DeviceOrientationEvent) {{
             window.addEventListener('deviceorientation', procesarOrientacion, true);
             window.addEventListener('deviceorientationabsolute', procesarOrientacion, true);
-            document.getElementById('lbl-status').innerText = "CONECTANDO SENSORES...";
+            document.getElementById('lbl-status').innerText = "ESTABILIZANDO SENSORES...";
         }} else {{
             alert("Sensores no disponibles en este dispositivo.");
         }}
@@ -321,10 +336,10 @@ js_v63_engine = f"""
         
         // Estampado superior
         ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
-        ctx.fillRect(20, 20, 380, 45);
+        ctx.fillRect(20, 20, 420, 45);
         ctx.fillStyle = "#38bdf8";
         ctx.font = "bold 15px sans-serif";
-        ctx.fillText(tIdentificacion + " (Dec GPS: " + declinacionCalculadaGPS + "° | " + lblUtVal.innerText + "µT)", 35, 48);
+        ctx.fillText(tIdentificacion + " (Dec GPS: " + declinacionCalculadaGPS + "°)", 35, 48);
         
         // Estampado inferior de datos
         ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
@@ -332,7 +347,7 @@ js_v63_engine = f"""
         
         ctx.fillStyle = "#ffffff";
         ctx.font = "bold 22px sans-serif";
-        ctx.fillText("EVIDENCIA DE INSPECCIÓN QA - V6.3", 30, canvas.height - 130);
+        ctx.fillText("EVIDENCIA DE INSPECCIÓN QA - V6.4", 30, canvas.height - 130);
         
         const azReal = document.getElementById('lbl-azimut-real').innerText;
         const tltReal = document.getElementById('lbl-tilt-real').innerText;
@@ -359,5 +374,5 @@ js_v63_engine = f"""
 </script>
 """
 
-st.components.v1.html(js_v63_engine, height=880, scrolling=False)
-st.caption("Desarrollado para Procesos de Calidad Entel - V6.3 con Sensor EMI (µT).")
+st.components.v1.html(js_v64_engine, height=880, scrolling=False)
+st.caption("Desarrollado para Procesos de Calidad Entel - V6.4 con Check de Precisión.")
