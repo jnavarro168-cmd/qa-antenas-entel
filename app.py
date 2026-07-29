@@ -369,42 +369,53 @@ btnCapturar.addEventListener('click', () => {{
         ctx.drawImage(overlayCanvas, 0, 0, canvas.width, canvas.height);
 
         // --- CÁLCULO DE ESCALA DINÁMICA ---
-        // Compara el ancho real de la foto contra una pantalla base de 400px.
-        // Si la foto es 4K, el multiplicador hará que la letra crezca en proporción.
         const esc = canvas.width / 400; 
 
-        // 3. Estampado superior (Caja de Identificación)
+        // 3. Estampado superior (Identificación del sitio)
         ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
-        ctx.fillRect(5 * esc, 5 * esc, 380 * esc, 28 * esc);
+        ctx.fillRect(10 * esc, 10 * esc, 380 * esc, 28 * esc);
         
         ctx.fillStyle = "#38bdf8";
         ctx.font = "bold " + Math.floor(12 * esc) + "px sans-serif";
-        ctx.fillText(tIdentificacion + " (Dec GPS: " + declinacionCalculadaGPS + "°)", 12 * esc, 24 * esc);
+        ctx.textAlign = "left";
+        ctx.fillText(tIdentificacion + " (Dec GPS: " + declinacionCalculadaGPS + "°)", 18 * esc, 28 * esc);
         
-        // 4. Estampado inferior de datos (Panel de Resultados)
-        const altoCaja = 100 * esc;
-        ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
-        ctx.fillRect(0, canvas.height - altoCaja, canvas.width, altoCaja);
+        // 4. Panel inferior de datos (Reorganizado en filas independientes)
+        const altoCaja = 135 * esc;
+        const yBase = canvas.height - altoCaja;
+
+        // Fondo oscuro translúcido
+        ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
+        ctx.fillRect(0, yBase, canvas.width, altoCaja);
         
+        // Título de la evidencia
         ctx.fillStyle = "#ffffff";
-        ctx.font = "bold " + Math.floor(15 * esc) + "px sans-serif";
-        ctx.fillText("EVIDENCIA QA - TARGET V6.5", 15 * esc, canvas.height - (70 * esc));
+        ctx.font = "bold " + Math.floor(14 * esc) + "px sans-serif";
+        ctx.fillText("EVIDENCIA QA - TARGET V6.5", 15 * esc, yBase + (24 * esc));
         
         const azReal = document.getElementById('lbl-azimut-real').innerText;
         const tltReal = document.getElementById('lbl-tilt-real').innerText;
         const status = document.getElementById('lbl-status').innerText;
         
-        ctx.font = Math.floor(13 * esc) + "px sans-serif";
+        // Lecturas de Azimut y Tilt en filas separadas
+        ctx.font = Math.floor(12.5 * esc) + "px sans-serif";
         ctx.fillStyle = "#38bdf8";
-        ctx.fillText("AZIMUT VERD: " + azReal + "° (Teórico: " + tAzimut + "°)", 15 * esc, canvas.height - (45 * esc));
-        ctx.fillText("TILT REAL: " + tltReal + "° (Teórico: " + tTilt + "°)", 15 * esc, canvas.height - (22 * esc));
+        ctx.fillText("AZIMUT VERD: " + azReal + "° (Teórico: " + tAzimut + "°)", 15 * esc, yBase + (48 * esc));
+        ctx.fillText("TILT REAL: " + tltReal + "° (Teórico: " + tTilt + "°)", 15 * esc, yBase + (70 * esc));
         
-        // 5. Estado de Tolerancia (Alineado a la derecha para que no choque)
-        ctx.font = "bold " + Math.floor(15 * esc) + "px sans-serif";
-        ctx.fillStyle = status.includes("CONFORME") ? "#22c55e" : "#ef4444";
-        ctx.textAlign = "right";
-        ctx.fillText(status, canvas.width - (15 * esc), canvas.height - (35 * esc));
-        ctx.textAlign = "left"; // Restaurar alineación
+        // 5. Banner de Estado destacado (En su propia franja inferior para 0% traslape)
+        const esConforme = status.includes("CONFORME");
+        ctx.fillStyle = esConforme ? "rgba(34, 197, 94, 0.95)" : "rgba(239, 68, 68, 0.95)";
+        ctx.fillRect(10 * esc, yBase + (88 * esc), canvas.width - (20 * esc), 32 * esc);
+        
+        // Texto centrado dentro del banner
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold " + Math.floor(13 * esc) + "px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(status, canvas.width / 2, yBase + (109 * esc));
+        
+        // Restaurar alineación predeterminada
+        ctx.textAlign = "left";
         
         try {{
             const dataURL = canvas.toDataURL('image/png');
