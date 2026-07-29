@@ -31,11 +31,19 @@ st.info("Utiliza la cámara para capturar la evidencia con marca de agua y telem
 # =====================================================================
 # ⚠️ IMPORTANTE: PEGA AQUÍ TU st.components.v1.html CON EL JAVASCRIPT
 # =====================================================================
-# st.components.v1.html(""" 
-#   <html>... Tu código de V6.6 con la brújula y cámara ...</html>
-# """, height=600)
-st.success("Motor de captura activo. (Aquí va tu componente HTML/JS).")
+st.components.v1.html("""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Brújula y Cámara</title>
+        </head>
+    <body>
+        ...
+    </body>
+    </html>
+""", height=650)
 
+st.success("Motor de captura activo.")
 
 st.markdown("---")
 
