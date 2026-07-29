@@ -2,13 +2,13 @@ import streamlit as st
 
 # Configuración de la página para dispositivos móviles
 st.set_page_config(
-    page_title="Entel QA - Target V6.5",
+    page_title="Entel QA - Target V6.6",
     page_icon="📡",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-st.title("📡 Entel QA - Inspector Target V6.5")
+st.title("📡 Entel QA - Inspector Target V6.6")
 
 # --- PARÁMETROS DE INSPECCIÓN ---
 col_id1, col_id2 = st.columns([2, 1])
@@ -56,8 +56,8 @@ TOL_TILT = 2.0
 texto_identificacion = f"{sitio_nemonico} - {sector_seleccionado.upper()}"
 nombre_archivo_sector = f"{sitio_nemonico}_{sector_seleccionado.replace(' ', '-')}"
 
-# --- COMPONENTE HTML5 / JS INTEGRADO V6.5 CON MIRA Y TARGET ---
-js_v65_engine = f"""
+# --- COMPONENTE HTML5 / JS INTEGRADO V6.6 CON MIRA, GPS Y ALTA RESOLUCIÓN ---
+js_v66_engine = f"""
 <div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: system-ui, -apple-system, sans-serif; background: #0f172a; padding: 8px; border-radius: 12px;">
     
     <div style="position: relative; width: 100%; border-radius: 10px; overflow: hidden; background: #000;">
@@ -107,7 +107,7 @@ js_v65_engine = f"""
 
 <div style="max-width: 500px; margin: 6px auto 0 auto; display: flex; flex-direction: column; gap: 6px;">
     <button id="btn-permisos" style="padding: 12px; font-size: 14px; font-weight: bold; background-color: #005A9C; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%;">
-        📡 ACTIVAR CÁMARA Y MIRA TARGET V6.5
+        📡 ACTIVAR CÁMARA Y MIRA TARGET V6.6
     </button>
     
     <button id="btn-capturar" style="display: none; padding: 14px; font-size: 15px; font-weight: bold; background-color: #e11d48; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
@@ -138,6 +138,9 @@ js_v65_engine = f"""
     const offsetManual = {compensacion_manual};
 
     let declinacionCalculadaGPS = 0.0;
+    let latitudActual = "Buscando...";
+    let longitudActual = "Buscando...";
+    
     let azimutSuave = null;
     let tiltSuave = null;
     let ultimoAzimutRenderizado = null;
@@ -156,15 +159,23 @@ js_v65_engine = f"""
             navigator.geolocation.getCurrentPosition((pos) => {{
                 let lat = pos.coords.latitude;
                 let lon = pos.coords.longitude;
+                
+                latitudActual = lat.toFixed(6);
+                longitudActual = lon.toFixed(6);
+                
                 declinacionCalculadaGPS = calcularDeclinacionAproximada(lat, lon);
                 lblDecGps.innerText = (declinacionCalculadaGPS > 0 ? "+" : "") + declinacionCalculadaGPS + "°";
             }}, (err) => {{
                 lblDecGps.innerText = "Std (-4.5°)";
                 declinacionCalculadaGPS = -4.5;
+                latitudActual = "Sin señal GPS";
+                longitudActual = "Sin señal GPS";
             }});
         }} else {{
             lblDecGps.innerText = "Sin GPS (-4.5°)";
             declinacionCalculadaGPS = -4.5;
+            latitudActual = "No soportado";
+            longitudActual = "No soportado";
         }}
     }}
 
@@ -200,16 +211,13 @@ js_v65_engine = f"""
         oCtx.stroke();
 
         // 3. Mapeo del Punto Móvil (Burbuja Real)
-        // Escalado: 1 grado de desviación = 5 píxeles en pantalla
         const escalaPx = 5;
         let posX = cX + (desvAz * escalaPx);
         let posY = cY + (desvTlt * escalaPx);
 
-        // Clampear para no salir de la pantalla de la cámara
         posX = Math.max(15, Math.min(w - 15, posX));
         posY = Math.max(15, Math.min(h - 15, posY));
 
-        // Dibujar Punto Móvil (Target Dot)
         oCtx.beginPath();
         oCtx.arc(posX, posY, 10, 0, 2 * Math.PI);
         oCtx.fillStyle = estaConforme ? "#22c55e" : "#facc15";
@@ -218,7 +226,6 @@ js_v65_engine = f"""
         oCtx.strokeStyle = "#ffffff";
         oCtx.stroke();
 
-        // Línea conector entre centro y punto
         oCtx.beginPath();
         oCtx.moveTo(cX, cY);
         oCtx.lineTo(posX, posY);
@@ -266,9 +273,8 @@ js_v65_engine = f"""
         return Math.round(tiltSuave);
     }}
 
-   async function iniciarCamara() {{
+    async function iniciarCamara() {{
         try {{
-            // Pedimos al navegador la resolución más alta posible
             const stream = await navigator.mediaDevices.getUserMedia({{
                 video: {{ 
                     facingMode: "environment",
@@ -278,10 +284,8 @@ js_v65_engine = f"""
                 audio: false
             }});
             
-            // Configurar el video
             video.srcObject = stream;
             
-            // Ajustamos la calidad interna de reproducción
             video.onloadedmetadata = () => {{
                 video.play();
             }};
@@ -357,7 +361,7 @@ js_v65_engine = f"""
         btnPermisos.style.display = 'none';
     }});
 
-btnCapturar.addEventListener('click', () => {{
+    btnCapturar.addEventListener('click', () => {{
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         const ctx = canvas.getContext('2d');
@@ -371,42 +375,43 @@ btnCapturar.addEventListener('click', () => {{
         // --- CÁLCULO DE ESCALA DINÁMICA ---
         const esc = canvas.width / 400; 
 
-        // --- OBTENER FECHA Y HORA ACTUAL (Formato Chile) ---
+        // --- OBTENER FECHA Y HORA ACTUAL ---
         const ahora = new Date();
         const fechaHora = ahora.toLocaleString('es-CL', {{ hour12: false }});
 
-        // 3. Estampado superior (Identificación + Sello de Tiempo)
+        // 3. Estampado superior (Identificación + Sello de Tiempo + Coordenadas)
         ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
-        ctx.fillRect(10 * esc, 10 * esc, 380 * esc, 45 * esc); // Caja más alta para que quepa la fecha
+        ctx.fillRect(10 * esc, 10 * esc, 380 * esc, 60 * esc); 
         
         ctx.fillStyle = "#38bdf8";
         ctx.font = "bold " + Math.floor(12 * esc) + "px sans-serif";
         ctx.textAlign = "left";
         ctx.fillText(tIdentificacion + " (Dec GPS: " + declinacionCalculadaGPS + "°)", 18 * esc, 28 * esc);
         
-        // Dibujamos la fecha y hora en gris claro
+        // Dibujamos la fecha y hora
         ctx.fillStyle = "#cbd5e1";
         ctx.font = Math.floor(10.5 * esc) + "px sans-serif";
-        ctx.fillText("📅 Fecha de Inspección: " + fechaHora, 18 * esc, 45 * esc);
+        ctx.fillText("📅 Fecha de Inspección: " + fechaHora, 18 * esc, 44 * esc);
+
+        // Dibujamos las Coordenadas GPS destacadas en amarillo
+        ctx.fillStyle = "#facc15"; 
+        ctx.fillText("📍 Lat: " + latitudActual + " / Lon: " + longitudActual, 18 * esc, 60 * esc);
         
         // 4. Panel inferior de datos
         const altoCaja = 135 * esc;
         const yBase = canvas.height - altoCaja;
 
-        // Fondo oscuro translúcido
         ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
         ctx.fillRect(0, yBase, canvas.width, altoCaja);
         
-        // Título de la evidencia
         ctx.fillStyle = "#ffffff";
         ctx.font = "bold " + Math.floor(14 * esc) + "px sans-serif";
-        ctx.fillText("EVIDENCIA QA - TARGET V6.5", 15 * esc, yBase + (24 * esc));
+        ctx.fillText("EVIDENCIA QA - TARGET V6.6", 15 * esc, yBase + (24 * esc));
         
         const azReal = document.getElementById('lbl-azimut-real').innerText;
         const tltReal = document.getElementById('lbl-tilt-real').innerText;
         const status = document.getElementById('lbl-status').innerText;
         
-        // Lecturas de Azimut y Tilt en filas separadas
         ctx.font = Math.floor(12.5 * esc) + "px sans-serif";
         ctx.fillStyle = "#38bdf8";
         ctx.fillText("AZIMUT VERD: " + azReal + "° (Teórico: " + tAzimut + "°)", 15 * esc, yBase + (48 * esc));
@@ -438,5 +443,5 @@ btnCapturar.addEventListener('click', () => {{
 </script>
 """
 
-st.components.v1.html(js_v65_engine, height=880, scrolling=False)
-st.caption("Desarrollado para Procesos de Calidad Entel - V6.5 Target Alignment System.")
+st.components.v1.html(js_v66_engine, height=880, scrolling=False)
+st.caption("Desarrollado para Procesos de Calidad Entel - V6.6 Target Alignment System.")
