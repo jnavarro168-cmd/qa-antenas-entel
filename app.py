@@ -371,16 +371,25 @@ btnCapturar.addEventListener('click', () => {{
         // --- CÁLCULO DE ESCALA DINÁMICA ---
         const esc = canvas.width / 400; 
 
-        // 3. Estampado superior (Identificación del sitio)
+        // --- OBTENER FECHA Y HORA ACTUAL (Formato Chile) ---
+        const ahora = new Date();
+        const fechaHora = ahora.toLocaleString('es-CL', {{ hour12: false }});
+
+        // 3. Estampado superior (Identificación + Sello de Tiempo)
         ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
-        ctx.fillRect(10 * esc, 10 * esc, 380 * esc, 28 * esc);
+        ctx.fillRect(10 * esc, 10 * esc, 380 * esc, 45 * esc); // Caja más alta para que quepa la fecha
         
         ctx.fillStyle = "#38bdf8";
         ctx.font = "bold " + Math.floor(12 * esc) + "px sans-serif";
         ctx.textAlign = "left";
         ctx.fillText(tIdentificacion + " (Dec GPS: " + declinacionCalculadaGPS + "°)", 18 * esc, 28 * esc);
         
-        // 4. Panel inferior de datos (Reorganizado en filas independientes)
+        // Dibujamos la fecha y hora en gris claro
+        ctx.fillStyle = "#cbd5e1";
+        ctx.font = Math.floor(10.5 * esc) + "px sans-serif";
+        ctx.fillText("📅 Fecha de Inspección: " + fechaHora, 18 * esc, 45 * esc);
+        
+        // 4. Panel inferior de datos
         const altoCaja = 135 * esc;
         const yBase = canvas.height - altoCaja;
 
@@ -403,7 +412,7 @@ btnCapturar.addEventListener('click', () => {{
         ctx.fillText("AZIMUT VERD: " + azReal + "° (Teórico: " + tAzimut + "°)", 15 * esc, yBase + (48 * esc));
         ctx.fillText("TILT REAL: " + tltReal + "° (Teórico: " + tTilt + "°)", 15 * esc, yBase + (70 * esc));
         
-        // 5. Banner de Estado destacado (En su propia franja inferior para 0% traslape)
+        // 5. Banner de Estado destacado
         const esConforme = status.includes("CONFORME");
         ctx.fillStyle = esConforme ? "rgba(34, 197, 94, 0.95)" : "rgba(239, 68, 68, 0.95)";
         ctx.fillRect(10 * esc, yBase + (88 * esc), canvas.width - (20 * esc), 32 * esc);
