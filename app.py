@@ -357,44 +357,54 @@ js_v65_engine = f"""
         btnPermisos.style.display = 'none';
     }});
 
-    btnCapturar.addEventListener('click', () => {{
+btnCapturar.addEventListener('click', () => {{
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         const ctx = canvas.getContext('2d');
         
-        // 1. Imagen base
+        // 1. Imagen base de la cámara
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         
-        // 2. Estampar la gráfica de Target
+        // 2. Estampar la gráfica de la mira (Target)
         ctx.drawImage(overlayCanvas, 0, 0, canvas.width, canvas.height);
 
-        // 3. Estampado superior
+        // --- CÁLCULO DE ESCALA DINÁMICA ---
+        // Compara el ancho real de la foto contra una pantalla base de 400px.
+        // Si la foto es 4K, el multiplicador hará que la letra crezca en proporción.
+        const esc = canvas.width / 400; 
+
+        // 3. Estampado superior (Caja de Identificación)
         ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
-        ctx.fillRect(20, 20, 380, 45);
-        ctx.fillStyle = "#38bdf8";
-        ctx.font = "bold 15px sans-serif";
-        ctx.fillText(tIdentificacion + " (Dec GPS: " + declinacionCalculadaGPS + "°)", 35, 48);
+        ctx.fillRect(5 * esc, 5 * esc, 380 * esc, 28 * esc);
         
-        // 4. Estampado inferior de datos
+        ctx.fillStyle = "#38bdf8";
+        ctx.font = "bold " + Math.floor(12 * esc) + "px sans-serif";
+        ctx.fillText(tIdentificacion + " (Dec GPS: " + declinacionCalculadaGPS + "°)", 12 * esc, 24 * esc);
+        
+        // 4. Estampado inferior de datos (Panel de Resultados)
+        const altoCaja = 100 * esc;
         ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
-        ctx.fillRect(0, canvas.height - 180, canvas.width, 180);
+        ctx.fillRect(0, canvas.height - altoCaja, canvas.width, altoCaja);
         
         ctx.fillStyle = "#ffffff";
-        ctx.font = "bold 22px sans-serif";
-        ctx.fillText("EVIDENCIA DE INSPECCIÓN TARGET - V6.5", 30, canvas.height - 130);
+        ctx.font = "bold " + Math.floor(15 * esc) + "px sans-serif";
+        ctx.fillText("EVIDENCIA QA - TARGET V6.5", 15 * esc, canvas.height - (70 * esc));
         
         const azReal = document.getElementById('lbl-azimut-real').innerText;
         const tltReal = document.getElementById('lbl-tilt-real').innerText;
         const status = document.getElementById('lbl-status').innerText;
         
-        ctx.font = "17px sans-serif";
+        ctx.font = Math.floor(13 * esc) + "px sans-serif";
         ctx.fillStyle = "#38bdf8";
-        ctx.fillText("AZIMUT VERDADERO: " + azReal + "° (Teórico: " + tAzimut + "°)", 30, canvas.height - 95);
-        ctx.fillText("TILT REAL: " + tltReal + "° (Teórico: " + tTilt + "°)", 30, canvas.height - 65);
+        ctx.fillText("AZIMUT VERD: " + azReal + "° (Teórico: " + tAzimut + "°)", 15 * esc, canvas.height - (45 * esc));
+        ctx.fillText("TILT REAL: " + tltReal + "° (Teórico: " + tTilt + "°)", 15 * esc, canvas.height - (22 * esc));
         
-        ctx.font = "bold 18px sans-serif";
+        // 5. Estado de Tolerancia (Alineado a la derecha para que no choque)
+        ctx.font = "bold " + Math.floor(15 * esc) + "px sans-serif";
         ctx.fillStyle = status.includes("CONFORME") ? "#22c55e" : "#ef4444";
-        ctx.fillText("ESTADO: " + status, 30, canvas.height - 25);
+        ctx.textAlign = "right";
+        ctx.fillText(status, canvas.width - (15 * esc), canvas.height - (35 * esc));
+        ctx.textAlign = "left"; // Restaurar alineación
         
         try {{
             const dataURL = canvas.toDataURL('image/png');
