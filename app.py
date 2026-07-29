@@ -28,6 +28,18 @@ st.markdown("---")
 st.subheader("📸 2. Captura de Evidencia en Terreno")
 st.info("Utiliza la cámara para capturar la evidencia con marca de agua y telemetría.")
 
+st.components.v1.html("""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Brújula y Cámara</title>
+        </head>
+    <body>
+        ...
+    </body>
+    </html>
+""", height=650)
+
 # =====================================================================
 # ⚠️ IMPORTANTE: PEGA AQUÍ TU st.components.v1.html CON EL JAVASCRIPT
 # =====================================================================
