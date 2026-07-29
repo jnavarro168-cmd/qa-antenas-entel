@@ -1,59 +1,71 @@
-import streamlit as st
+import base64
+from datetime import datetime
+import os
 import google.generativeai as genai
 from PIL import Image
-import base64
-import os
-from datetime import datetime
+import streamlit as st
 from weasyprint import HTML
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
-    page_title="Entel QA - Target V6.7",
+    page_title="Entel QA - Target V6.7 AI",
     page_icon="📡",
     layout="centered",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="collapsed",
 )
 
-st.title("📡 Entel QA - Inspector Target V6.7")
-st.markdown("**Versión con IA (Gemini) y Generación de Reportes PDF**")
+st.title("📡 Entel QA - Inspector Target V6.7 (con IA)")
+st.markdown(
+    "**Sistema de Inspección, Alineación y Auditoría con Inteligencia"
+    " Artificial**"
+)
 
 # --- 1. DATOS DEL SITIO (INPUTS) ---
-with st.expander("📝 1. Ingresar Datos del Sitio", expanded=True):
-    col_id1, col_id2 = st.columns([2, 1])
+with st.expander("📝 1. Ingresar Datos del Sitio y Parámetros", expanded=True):
+  col_id1, col_id2 = st.columns([2, 1])
 
-    with col_id1:
-        sitio_nemonico = st.text_input(
-            "Nemónico del Sitio / Nodo:", 
-            value="SA542", 
-            max_chars=20
-        ).strip().upper()
-
-    with col_id2:
-        sector_seleccionado = st.selectbox(
-            "Sector:",
-            options=["Sector 1", "Sector 2", "Sector 3", "Sector 4"],
-            index=0
-        )
-
-    col_input1, col_input2 = st.columns(2)
-
-    with col_input1:
-        azimut_teorico = st.number_input(
-            "Azimut Teórico (°)", 
-            min_value=0.0, max_value=360.0, value=120.0, step=1.0
-        )
-
-    with col_input2:
-        tilt_teorico = st.number_input(
-            "Tilt Teórico (°)", 
-            min_value=-90.0, max_value=90.0, value=-5.0, step=0.5
-        )
-
-    # --- CALIBRACIÓN ---
-    compensacion_manual = st.number_input(
-        "Ajuste Fino Manual (°):",
-        min_value=-90.0, max_value=90.0, value=0.0, step=0.5
+  with col_id1:
+    sitio_nemonico = (
+        st.text_input("Nemónico del Sitio / Nodo:", value="SA542", max_chars=20)
+        .strip()
+        .upper()
     )
+
+  with col_id2:
+    sector_seleccionado = st.selectbox(
+        "Sector:",
+        options=["Sector 1", "Sector 2", "Sector 3", "Sector 4"],
+        index=0,
+    )
+
+  col_input1, col_input2 = st.columns(2)
+
+  with col_input1:
+    azimut_teorico = st.number_input(
+        "Azimut Teórico (°)",
+        min_value=0.0,
+        max_value=360.0,
+        value=300.0,
+        step=1.0,
+    )
+
+  with col_input2:
+    tilt_teorico = st.number_input(
+        "Tilt Teórico (°)",
+        min_value=-90.0,
+        max_value=90.0,
+        value=85.0,
+        step=0.5,
+    )
+
+  # --- CALIBRACIÓN Y AJUSTE ---
+  compensacion_manual = st.number_input(
+      "Ajuste Fino Manual (°):",
+      min_value=-90.0,
+      max_value=90.0,
+      value=0.0,
+      step=0.5,
+  )
 
 TOL_AZIMUT = 5.0
 TOL_TILT = 2.0
@@ -65,7 +77,7 @@ st.markdown("---")
 
 # --- 2. MOTOR DE CÁMARA Y SENSORES ---
 st.subheader("📸 2. Captura de Evidencia en Terreno")
-st.info("Utiliza la cámara para capturar la evidencia con marca de agua y telemetría.")
+st.info("Utiliza la cámara para alinear la antena y capturar la evidencia.")
 
 js_v66_engine = f"""
 <div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: system-ui, -apple-system, sans-serif; background: #0f172a; padding: 8px; border-radius: 12px;">
@@ -169,10 +181,8 @@ js_v66_engine = f"""
             navigator.geolocation.getCurrentPosition((pos) => {{
                 let lat = pos.coords.latitude;
                 let lon = pos.coords.longitude;
-                
                 latitudActual = lat.toFixed(6);
                 longitudActual = lon.toFixed(6);
-                
                 declinacionCalculadaGPS = calcularDeclinacionAproximada(lat, lon);
                 lblDecGps.innerText = (declinacionCalculadaGPS > 0 ? "+" : "") + declinacionCalculadaGPS + "°";
             }}, (err) => {{
@@ -249,13 +259,10 @@ js_v66_engine = f"""
             ultimoAzimutRenderizado = Math.round(azimutSuave);
             return azimutSuave;
         }}
-        
         let diferencia = nuevoHeading - azimutSuave;
         if (diferencia > 180) diferencia -= 360;
         if (diferencia < -180) diferencia += 360;
-        
         azimutSuave += diferencia * FACTOR_SUAVIDAD_AZIMUT;
-        
         if (azimutSuave < 0) azimutSuave += 360;
         if (azimutSuave >= 360) azimutSuave -= 360;
         
@@ -267,7 +274,6 @@ js_v66_engine = f"""
         if (Math.abs(deltaDisplay) >= UMBRAL_ZONA_MUERTA) {{
             ultimoAzimutRenderizado = candidatoRedondeado;
         }}
-        
         return ultimoAzimutRenderizado;
     }}
 
@@ -290,16 +296,10 @@ js_v66_engine = f"""
                 }},
                 audio: false
             }});
-            
             video.srcObject = stream;
-            
-            video.onloadedmetadata = () => {{
-                video.play();
-            }};
-            
+            video.onloadedmetadata = () => {{ video.play(); }};
             btnCapturar.style.display = 'block';
         }} catch (err) {{
-            console.error("Error al iniciar cámara: ", err);
             alert("No se pudo iniciar la cámara en alta resolución. Revisar permisos.");
         }}
     }}
@@ -319,7 +319,6 @@ js_v66_engine = f"""
 
         let azimutBrutoEstable = filtrarAzimutEstable(heading);
         let azimutVerdadero = azimutBrutoEstable + declinacionCalculadaGPS + offsetManual;
-        
         if (azimutVerdadero < 0) azimutVerdadero += 360;
         if (azimutVerdadero >= 360) azimutVerdadero -= 360;
 
@@ -328,7 +327,6 @@ js_v66_engine = f"""
         let desvAzimut = Math.round(azimutVerdadero - tAzimut);
         if (desvAzimut > 180) desvAzimut -= 360;
         if (desvAzimut < -180) desvAzimut += 360;
-        
         let desvTilt = Math.round(tiltReal - tTilt);
 
         document.getElementById('lbl-azimut-real').innerText = Math.round(azimutVerdadero);
@@ -357,7 +355,6 @@ js_v66_engine = f"""
     btnPermisos.addEventListener('click', async () => {{
         await iniciarCamara();
         obtenerGPS();
-        
         if (window.DeviceOrientationEvent) {{
             window.addEventListener('deviceorientation', procesarOrientacion, true);
             window.addEventListener('deviceorientationabsolute', procesarOrientacion, true);
@@ -372,7 +369,6 @@ js_v66_engine = f"""
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         const ctx = canvas.getContext('2d');
-        
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         ctx.drawImage(overlayCanvas, 0, 0, canvas.width, canvas.height);
 
@@ -382,7 +378,6 @@ js_v66_engine = f"""
 
         ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
         ctx.fillRect(10 * esc, 10 * esc, 380 * esc, 60 * esc); 
-        
         ctx.fillStyle = "#38bdf8";
         ctx.font = "bold " + Math.floor(12 * esc) + "px sans-serif";
         ctx.textAlign = "left";
@@ -422,7 +417,6 @@ js_v66_engine = f"""
         ctx.font = "bold " + Math.floor(13 * esc) + "px sans-serif";
         ctx.textAlign = "center";
         ctx.fillText(status, canvas.width / 2, yBase + (109 * esc));
-        
         ctx.textAlign = "left";
         
         try {{
@@ -438,152 +432,177 @@ js_v66_engine = f"""
 """
 
 st.components.v1.html(js_v66_engine, height=880, scrolling=False)
-st.caption("Desarrollado para Procesos de Calidad Entel - V6.7 Target Alignment System.")
 
 st.markdown("---")
 
-# --- 3. CARGA DE EVIDENCIA PARA ANÁLISIS ---
-st.subheader("⚙️ 3. Auditoría Inteligente y Reporte")
-st.write("Sube la imagen que acabas de descargar del motor de captura para validarla y generar el PDF.")
+# --- 3. AUDITORÍA CON IA Y GENERACIÓN DE REPORTES ---
+st.subheader("🧠 3. Auditoría Inteligente con IA y PDF")
+st.write(
+    "Carga la evidencia capturada para auditarla mediante **Gemini AI** y"
+    " generar el reporte oficial."
+)
 
-imagen_subida = st.file_uploader("Cargar captura con marca de agua (PNG/JPG)", type=["png", "jpg", "jpeg"])
+imagen_subida = st.file_uploader(
+    "Cargar captura con marca de agua (PNG/JPG)", type=["png", "jpg", "jpeg"]
+)
 
 if imagen_subida is not None:
-    # Mostrar la imagen
-    img = Image.open(imagen_subida)
-    st.image(img, caption="Evidencia cargada exitosamente", use_column_width=True)
-    
-    # --- MÓDULO GEMINI (ASISTENTE IA) ---
-    st.markdown("### 🧠 Análisis con Gemini")
-    API_KEY = st.text_input("Ingresa tu API Key de Gemini:", type="password")
-    
-    if API_KEY:
-        try:
-            genai.configure(api_key=API_KEY)
-            modelo = genai.GenerativeModel('gemini-1.5-flash')
-            
-            prompt_qa = f"""
-            Eres un auditor de calidad (QA) de telecomunicaciones para la empresa Entel.
-            Analiza esta imagen de alineación de antena (Sitio {sitio_nemonico}, {sector_seleccionado}).
-            Verifica:
-            1. Que los valores de Azimut y Tilt se lean claramente.
-            2. Que el cartel verde de "OBJETIVO ALINEADO (CONFORME)" esté visible.
-            Responde de forma breve, profesional y al grano indicando si la captura es válida como evidencia.
-            """
-            
-            if st.button("🚀 Iniciar Análisis IA"):
-                with st.spinner("La IA está revisando la imagen..."):
-                    respuesta = modelo.generate_content([prompt_qa, img])
-                    st.success("Análisis completado:")
-                    st.write(respuesta.text)
-        except Exception as e:
-            st.error(f"Error al conectar con Gemini: {e}")
-    else:
-        st.warning("⚠️ Ingresa una API Key para habilitar el auditor IA.")
+  img = Image.open(imagen_subida)
+  st.image(img, caption="Evidencia cargada para análisis", use_column_width=True)
 
-    # --- MÓDULO GENERACIÓN DE PDF ---
-    st.markdown("### 📄 Generar Documento Oficial")
-    
-    if st.button("📥 Generar y Descargar PDF"):
-        with st.spinner("Compilando reporte PDF..."):
-            # 1. Convertir la imagen subida a Base64 para incrustarla en el HTML
-            imagen_subida.seek(0)
-            encoded_string = base64.b64encode(imagen_subida.read()).decode('utf-8')
-            mime = "image/png" if imagen_subida.name.endswith(".png") else "image/jpeg"
-            img_base64_str = f"data:{mime};base64,{encoded_string}"
-            
-            # Fecha actual para el reporte
-            fecha_reporte = datetime.now().strftime("%d-%m-%Y, %H:%M:%S")
-            
-            # 2. Plantilla HTML (con CSS incrustado)
-            html_content = f"""
+  st.markdown("#### 🔑 Configuración de IA Gemini")
+  api_key_input = st.text_input(
+      "Ingresa tu API Key de Google Gemini (obtenida en aistudio.google.com):",
+      type="password",
+      help="Crea una clave gratuita en https://aistudio.google.com/",
+  ).strip()
+
+  analisis_ia_texto = ""
+
+  if st.button("🚀 Iniciar Análisis con IA"):
+    if not api_key_input:
+      st.error(
+          "⚠️ Por favor ingresa una API Key válida antes de iniciar el análisis."
+      )
+    else:
+      with st.spinner("Analizando evidencia fotográfica con Gemini AI..."):
+        try:
+          genai.configure(api_key=api_key_input)
+          model = genai.GenerativeModel("gemini-1.5-flash")
+
+          prompt = f"""
+                    Actúa como un auditor senior de Control de Calidad (QA) para redes de telecomunicaciones Entel.
+                    Analiza la imagen adjunta correspondiente al sitio {sitio_nemonico}, {sector_seleccionado}.
+                    1. Revisa la marca de agua y telemetría de la captura (Azimut, Tilt, Coordenadas GPS, Estado de Alineación).
+                    2. Verifica visualmente las condiciones físicas visibles del entorno.
+                    3. Genera una evaluación técnica concisa en un párrafo, indicando si la evidencia es formalmente válida y cumple con los parámetros de alineación requeridos.
+                    """
+
+          response = model.generate_content([prompt, img])
+          analisis_ia_texto = response.text
+          st.session_state["analisis_ia"] = analisis_ia_texto
+          st.success("¡Análisis de IA completado exitosamente!")
+
+        except Exception as e:
+          st.error(
+              f"Error al conectar con Gemini: {str(e)}\n\nAsegúrate de que la"
+              " clave comience con 'AIzaSy' y que esté activa en Google AI"
+              " Studio."
+          )
+
+  if "analisis_ia" in st.session_state and st.session_state["analisis_ia"]:
+    st.info(f"**Análisis Generado por IA:**\n\n{st.session_state['analisis_ia']}")
+
+  st.markdown("---")
+  if st.button("📄 Generar e Imprimir Informe PDF Oficial"):
+    with st.spinner("Generando Informe PDF..."):
+      imagen_subida.seek(0)
+      encoded_string = base64.b64encode(imagen_subida.read()).decode("utf-8")
+      mime = (
+          "image/png"
+          if imagen_subida.name.endswith(".png")
+          else "image/jpeg"
+      )
+      img_base64_str = f"data:{mime};base64,{encoded_string}"
+
+      fecha_reporte = datetime.now().strftime("%d-%m-%Y, %H:%M:%S")
+      ia_resumen = st.session_state.get(
+          "analisis_ia",
+          "Análisis de IA no ejecutado o sin observaciones adicionales.",
+      )
+
+      html_content = f"""
             <!DOCTYPE html>
             <html lang="es">
             <head>
             <meta charset="UTF-8">
             <style>
-              @page {{ size: A4; margin: 12mm 10mm; background-color: #f8fafc; }}
-              body {{ font-family: 'Helvetica Neue', Arial, sans-serif; color: #0f172a; font-size: 9.5pt; line-height: 1.4; }}
-              .header-banner {{ background-color: #0284c7; color: #ffffff; padding: 16px 20px; border-radius: 8px; margin-bottom: 14px; }}
-              .header-title {{ font-size: 16pt; font-weight: bold; margin: 0 0 4px 0; text-transform: uppercase; }}
-              .header-subtitle {{ font-size: 10pt; opacity: 0.9; margin: 0; }}
-              .status-card {{ background-color: #dcfce7; border: 2px solid #22c55e; border-radius: 8px; padding: 10px 16px; margin-bottom: 14px; text-align: center; }}
-              .status-title {{ font-size: 13pt; font-weight: bold; color: #15803d; margin: 0; text-transform: uppercase; }}
-              .section-title {{ font-size: 11pt; font-weight: bold; color: #0369a1; border-bottom: 2px solid #cbd5e1; padding-bottom: 3px; margin-top: 14px; margin-bottom: 10px; }}
-              table.data-table {{ width: 100%; border-collapse: collapse; margin-bottom: 12px; background-color: #ffffff; border-radius: 6px; border: 1px solid #e2e8f0; }}
-              table.data-table th, table.data-table td {{ padding: 6pt 8pt; text-align: left; border-bottom: 1px solid #e2e8f0; }}
-              table.data-table th {{ background-color: #f1f5f9; font-weight: bold; font-size: 9pt; }}
-              .photo-container {{ text-align: center; margin-top: 10px; margin-bottom: 14px; background-color: #ffffff; padding: 10px; border-radius: 8px; border: 1px solid #cbd5e1; }}
-              .photo-container img {{ max-width: 100%; height: 400px; border-radius: 6px; object-fit: contain; }}
-              .footer {{ margin-top: 20px; padding-top: 10px; border-top: 1px solid #cbd5e1; font-size: 7.5pt; color: #64748b; text-align: center; }}
+              @page {{ size: A4; margin: 12mm 12mm; }}
+              body {{ font-family: 'Helvetica Neue', Arial, sans-serif; color: #0f172a; font-size: 9pt; line-height: 1.4; }}
+              .header-table {{ width: 100%; border-collapse: collapse; margin-bottom: 12px; }}
+              .header-table td {{ vertical-align: middle; }}
+              .logo-box {{ background-color: #005A9C; color: #ffffff; font-weight: bold; font-size: 16pt; padding: 10px 15px; border-radius: 6px; text-align: center; }}
+              .header-title-box {{ padding-left: 15px; }}
+              .main-title {{ font-size: 14pt; font-weight: bold; color: #005A9C; margin: 0; text-transform: uppercase; }}
+              .sub-title {{ font-size: 9.5pt; color: #475569; margin-top: 2px; }}
+
+              .section-header {{ background-color: #005A9C; color: #ffffff; padding: 6px 10px; font-weight: bold; font-size: 10pt; border-radius: 4px; margin-top: 12px; margin-bottom: 8px; text-transform: uppercase; }}
+
+              table.info-table {{ width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 9pt; }}
+              table.info-table th, table.info-table td {{ padding: 6px 8px; border: 1px solid #cbd5e1; text-align: left; }}
+              table.info-table th {{ background-color: #f1f5f9; font-weight: bold; color: #1e293b; width: 25%; }}
+              table.info-table td {{ width: 25%; background-color: #ffffff; }}
+
+              .ia-box {{ background-color: #f8fafc; border-left: 4px solid #0284c7; padding: 10px; font-size: 8.5pt; border-radius: 4px; margin-bottom: 10px; }}
+
+              .photo-box {{ text-align: center; margin: 10px 0; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; background-color: #ffffff; }}
+              .photo-box img {{ max-width: 100%; max-height: 400px; border-radius: 4px; object-fit: contain; }}
+              .footer {{ margin-top: 15px; padding-top: 8px; border-top: 1px solid #cbd5e1; font-size: 7.5pt; color: #64748b; text-align: center; }}
             </style>
             </head>
             <body>
-            
-            <div class="header-banner">
-              <div class="header-title">Informe de Inspección y QA</div>
-              <div class="header-subtitle">Evidencia Técnica | Sistema Target V6.7</div>
-            </div>
-            
-            <div class="status-card">
-              <div class="status-title">🎯 OBJETIVO ALINEADO (CONFORME)</div>
-              <div style="font-size: 9pt; color: #166534; margin-top: 2px;">La evidencia ha sido procesada por la plataforma QA.</div>
-            </div>
-            
-            <div class="section-title">1. Datos Generales del Sitio</div>
-            <table class="data-table">
+
+            <table class="header-table">
               <tr>
-                <th>Identificador de Sitio:</th><td>{sitio_nemonico}</td>
-                <th>Sector:</th><td>{sector_seleccionado}</td>
-              </tr>
-              <tr>
-                <th>Fecha de Reporte:</th><td>{fecha_reporte}</td>
-                <th>Motor de Captura:</th><td>TARGET V6.7</td>
+                <td style="width: 25%;">
+                  <div class="logo-box">ENTEL</div>
+                </td>
+                <td class="header-title-box">
+                  <div class="main-title">INFORME TÉCNICO Y AUDITORÍA IA DE ALINEACIÓN</div>
+                  <div class="sub-title">Sistema de Verificación Target V6.7 - Control de Calidad QA</div>
+                </td>
               </tr>
             </table>
-            
-            <div class="section-title">2. Evidencia Fotográfica Capturada en Terreno</div>
-            <div class="photo-container">
-              <img src="{img_base64_str}" alt="Captura de Evidencia" />
-              <div style="font-size: 8.5pt; color: #475569; margin-top: 6px; font-style: italic;">
-                Figura 1: Captura fotográfica original con marca de agua gráfica y datos de telemetría.
-              </div>
-            </div>
-            
-            <div class="section-title">3. Parámetros Teóricos de Auditoría</div>
-            <table class="data-table">
+
+            <div class="section-header">1. Datos del Sitio e Inspección</div>
+            <table class="info-table">
               <tr>
-                <th>Azimut Teórico:</th><td>{azimut_teorico}°</td>
-                <th>Tolerancia Máx:</th><td>± 5°</td>
+                <th>Sitio / Nemónico:</th>
+                <td>{sitio_nemonico}</td>
+                <th>Sector / Celda:</th>
+                <td>{sector_seleccionado}</td>
               </tr>
               <tr>
-                <th>Tilt Teórico:</th><td>{tilt_teorico}°</td>
-                <th>Tolerancia Máx:</th><td>± 2°</td>
+                <th>Azimut Teórico:</th>
+                <td>{azimut_teorico}°</td>
+                <th>Tilt Teórico:</th>
+                <td>{tilt_teorico}°</td>
+              </tr>
+              <tr>
+                <th>Fecha de Inspección:</th>
+                <td colspan="3">{fecha_reporte}</td>
               </tr>
             </table>
-            
+
+            <div class="section-header">2. Dictamen Inteligente de Auditoría (Gemini AI)</div>
+            <div class="ia-box">
+              {ia_resumen}
+            </div>
+
+            <div class="section-header">3. Evidencia Fotográfica y Telemetría</div>
+            <div class="photo-box">
+              <img src="{img_base64_str}" alt="Evidencia de Alineación" />
+            </div>
+
             <div class="footer">
-              Generado por Asistente IA Entel QA • Sistema de Alineación de Antenas V6.7 • Documento Oficial
+              Informe emitido automáticamente por el Sistema Target V6.7 AI - Entel QA Control.
             </div>
-            
+
             </body>
             </html>
             """
-            
-            # 3. Generar PDF
-            archivo_pdf = "Reporte_Inspeccion.pdf"
-            HTML(string=html_content).write_pdf(archivo_pdf)
-            
-            # 4. Crear el botón de descarga
-            with open(archivo_pdf, "rb") as pdf_file:
-                st.download_button(
-                    label="💾 Clic aquí para descargar tu PDF",
-                    data=pdf_file,
-                    file_name=f"Reporte_QA_{sitio_nemonico}_{sector_seleccionado}.pdf",
-                    mime="application/pdf"
-                )
-            st.success("¡PDF generado con éxito! Ya puedes descargarlo.")
-            
-            # Limpiar el archivo temporal
-            if os.path.exists(archivo_pdf):
-                os.remove(archivo_pdf)
+
+      archivo_pdf = f"Reporte_QA_{sitio_nemonico}_{sector_seleccionado.replace(' ', '_')}.pdf"
+      HTML(string=html_content).write_pdf(archivo_pdf)
+
+      with open(archivo_pdf, "rb") as pdf_file:
+        st.download_button(
+            label="💾 Descargar Informe PDF Oficial",
+            data=pdf_file,
+            file_name=archivo_pdf,
+            mime="application/pdf",
+        )
+      st.success("¡Informe PDF generado exitosamente!")
+
+      if os.path.exists(archivo_pdf):
+        os.remove(archivo_pdf)
