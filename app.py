@@ -6,76 +6,54 @@ import os
 from datetime import datetime
 from weasyprint import HTML
 
-# --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="QA Antenas V6.7", page_icon="📡", layout="centered")
-
-st.title("📡 Sistema QA de Alineación - Target V6.7")
-st.markdown("**Versión con IA (Gemini) y Generación de Reportes PDF**")
-
-# --- 1. DATOS DEL SITIO (INPUTS) ---
-with st.expander("📝 1. Ingresar Datos del Sitio", expanded=True):
-    col1, col2 = st.columns(2)
-    with col1:
-        sitio_nemonico = st.text_input("Sitio (Ej. SA542)", "SA542")
-        sector_seleccionado = st.selectbox("Sector", ["SECTOR 1", "SECTOR 2", "SECTOR 3", "SECTOR 4"])
-    with col2:
-        azimut_teorico = st.number_input("Azimut Teórico (°)", min_value=0, max_value=360, value=300)
-        tilt_teorico = st.number_input("Tilt Teórico (°)", min_value=0, max_value=180, value=85)
-
-st.markdown("---")
-
-# --- 2. MOTOR DE CÁMARA Y SENSORES (TU CÓDIGO JS) ---
-import streamlit as st
-
-# Configuración de la página para dispositivos móviles
+# --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
-    page_title="Entel QA - Target V6.6",
+    page_title="Entel QA - Target V6.7",
     page_icon="📡",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-st.title("📡 Entel QA - Inspector Target V6.6")
+st.title("📡 Entel QA - Inspector Target V6.7")
+st.markdown("**Versión con IA (Gemini) y Generación de Reportes PDF**")
 
-# --- PARÁMETROS DE INSPECCIÓN ---
-col_id1, col_id2 = st.columns([2, 1])
+# --- 1. DATOS DEL SITIO (INPUTS) ---
+with st.expander("📝 1. Ingresar Datos del Sitio", expanded=True):
+    col_id1, col_id2 = st.columns([2, 1])
 
-with col_id1:
-    sitio_nemonico = st.text_input(
-        "Nemónico del Sitio / Nodo:", 
-        value="SA542", 
-        max_chars=20
-    ).strip().upper()
+    with col_id1:
+        sitio_nemonico = st.text_input(
+            "Nemónico del Sitio / Nodo:", 
+            value="SA542", 
+            max_chars=20
+        ).strip().upper()
 
-with col_id2:
-    sector_seleccionado = st.selectbox(
-        "Sector:",
-        options=["Sector 1", "Sector 2", "Sector 3", "Sector 4"],
-        index=0
+    with col_id2:
+        sector_seleccionado = st.selectbox(
+            "Sector:",
+            options=["Sector 1", "Sector 2", "Sector 3", "Sector 4"],
+            index=0
+        )
+
+    col_input1, col_input2 = st.columns(2)
+
+    with col_input1:
+        azimut_teorico = st.number_input(
+            "Azimut Teórico (°)", 
+            min_value=0.0, max_value=360.0, value=120.0, step=1.0
+        )
+
+    with col_input2:
+        tilt_teorico = st.number_input(
+            "Tilt Teórico (°)", 
+            min_value=-90.0, max_value=90.0, value=-5.0, step=0.5
+        )
+
+    # --- CALIBRACIÓN ---
+    compensacion_manual = st.number_input(
+        "Ajuste Fino Manual (°):",
+        min_value=-90.0, max_value=90.0, value=0.0, step=0.5
     )
-
-col_input1, col_input2 = st.columns(2)
-
-with col_input1:
-    azimut_teorico = st.number_input(
-        "Azimut Teórico (°)", 
-        min_value=0.0, max_value=360.0, value=120.0, step=1.0
-    )
-
-with col_input2:
-    tilt_teorico = st.number_input(
-        "Tilt Teórico (°)", 
-        min_value=-90.0, max_value=90.0, value=-5.0, step=0.5
-    )
-
-# --- CALIBRACIÓN ---
-compensacion_manual = st.number_input(
-    "Ajuste Fino Manual (°):",
-    min_value=-90.0,
-    max_value=90.0,
-    value=0.0,
-    step=0.5
-)
 
 TOL_AZIMUT = 5.0
 TOL_TILT = 2.0
@@ -83,7 +61,12 @@ TOL_TILT = 2.0
 texto_identificacion = f"{sitio_nemonico} - {sector_seleccionado.upper()}"
 nombre_archivo_sector = f"{sitio_nemonico}_{sector_seleccionado.replace(' ', '-')}"
 
-# --- COMPONENTE HTML5 / JS INTEGRADO V6.6 CON MIRA, GPS Y ALTA RESOLUCIÓN ---
+st.markdown("---")
+
+# --- 2. MOTOR DE CÁMARA Y SENSORES ---
+st.subheader("📸 2. Captura de Evidencia en Terreno")
+st.info("Utiliza la cámara para capturar la evidencia con marca de agua y telemetría.")
+
 js_v66_engine = f"""
 <div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: system-ui, -apple-system, sans-serif; background: #0f172a; padding: 8px; border-radius: 12px;">
     
@@ -134,7 +117,7 @@ js_v66_engine = f"""
 
 <div style="max-width: 500px; margin: 6px auto 0 auto; display: flex; flex-direction: column; gap: 6px;">
     <button id="btn-permisos" style="padding: 12px; font-size: 14px; font-weight: bold; background-color: #005A9C; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%;">
-        📡 ACTIVAR CÁMARA Y MIRA TARGET V6.6
+        📡 ACTIVAR CÁMARA Y MIRA TARGET V6.7
     </button>
     
     <button id="btn-capturar" style="display: none; padding: 14px; font-size: 15px; font-weight: bold; background-color: #e11d48; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
@@ -220,7 +203,6 @@ js_v66_engine = f"""
 
         oCtx.clearRect(0, 0, w, h);
 
-        // 1. Dibujar Zona Central de Tolerancia (Círculo Target)
         oCtx.beginPath();
         oCtx.arc(cX, cY, 35, 0, 2 * Math.PI);
         oCtx.fillStyle = estaConforme ? "rgba(34, 197, 94, 0.25)" : "rgba(239, 68, 68, 0.2)";
@@ -229,7 +211,6 @@ js_v66_engine = f"""
         oCtx.strokeStyle = estaConforme ? "#22c55e" : "rgba(255,255,255,0.4)";
         oCtx.stroke();
 
-        // 2. Cruz Central Fija (Teórico)
         oCtx.beginPath();
         oCtx.moveTo(cX - 15, cY); oCtx.lineTo(cX + 15, cY);
         oCtx.moveTo(cX, cY - 15); oCtx.lineTo(cX, cY + 15);
@@ -237,7 +218,6 @@ js_v66_engine = f"""
         oCtx.lineWidth = 2;
         oCtx.stroke();
 
-        // 3. Mapeo del Punto Móvil (Burbuja Real)
         const escalaPx = 5;
         let posX = cX + (desvAz * escalaPx);
         let posY = cY + (desvTlt * escalaPx);
@@ -319,7 +299,7 @@ js_v66_engine = f"""
             
             btnCapturar.style.display = 'block';
         }} catch (err) {{
-            console.error("Error al iniciar cámara de alta resolución: ", err);
+            console.error("Error al iniciar cámara: ", err);
             alert("No se pudo iniciar la cámara en alta resolución. Revisar permisos.");
         }}
     }}
@@ -393,20 +373,13 @@ js_v66_engine = f"""
         canvas.height = video.videoHeight;
         const ctx = canvas.getContext('2d');
         
-        // 1. Imagen base de la cámara
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
-        // 2. Estampar la gráfica de la mira (Target)
         ctx.drawImage(overlayCanvas, 0, 0, canvas.width, canvas.height);
 
-        // --- CÁLCULO DE ESCALA DINÁMICA ---
         const esc = canvas.width / 400; 
-
-        // --- OBTENER FECHA Y HORA ACTUAL ---
         const ahora = new Date();
         const fechaHora = ahora.toLocaleString('es-CL', {{ hour12: false }});
 
-        // 3. Estampado superior (Identificación + Sello de Tiempo + Coordenadas)
         ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
         ctx.fillRect(10 * esc, 10 * esc, 380 * esc, 60 * esc); 
         
@@ -415,16 +388,13 @@ js_v66_engine = f"""
         ctx.textAlign = "left";
         ctx.fillText(tIdentificacion + " (Dec GPS: " + declinacionCalculadaGPS + "°)", 18 * esc, 28 * esc);
         
-        // Dibujamos la fecha y hora
         ctx.fillStyle = "#cbd5e1";
         ctx.font = Math.floor(10.5 * esc) + "px sans-serif";
         ctx.fillText("📅 Fecha de Inspección: " + fechaHora, 18 * esc, 44 * esc);
 
-        // Dibujamos las Coordenadas GPS destacadas en amarillo
         ctx.fillStyle = "#facc15"; 
         ctx.fillText("📍 Lat: " + latitudActual + " / Lon: " + longitudActual, 18 * esc, 60 * esc);
         
-        // 4. Panel inferior de datos
         const altoCaja = 135 * esc;
         const yBase = canvas.height - altoCaja;
 
@@ -433,7 +403,7 @@ js_v66_engine = f"""
         
         ctx.fillStyle = "#ffffff";
         ctx.font = "bold " + Math.floor(14 * esc) + "px sans-serif";
-        ctx.fillText("EVIDENCIA QA - TARGET V6.6", 15 * esc, yBase + (24 * esc));
+        ctx.fillText("EVIDENCIA QA - TARGET V6.7", 15 * esc, yBase + (24 * esc));
         
         const azReal = document.getElementById('lbl-azimut-real').innerText;
         const tltReal = document.getElementById('lbl-tilt-real').innerText;
@@ -444,18 +414,15 @@ js_v66_engine = f"""
         ctx.fillText("AZIMUT VERD: " + azReal + "° (Teórico: " + tAzimut + "°)", 15 * esc, yBase + (48 * esc));
         ctx.fillText("TILT REAL: " + tltReal + "° (Teórico: " + tTilt + "°)", 15 * esc, yBase + (70 * esc));
         
-        // 5. Banner de Estado destacado
         const esConforme = status.includes("CONFORME");
         ctx.fillStyle = esConforme ? "rgba(34, 197, 94, 0.95)" : "rgba(239, 68, 68, 0.95)";
         ctx.fillRect(10 * esc, yBase + (88 * esc), canvas.width - (20 * esc), 32 * esc);
         
-        // Texto centrado dentro del banner
         ctx.fillStyle = "#ffffff";
         ctx.font = "bold " + Math.floor(13 * esc) + "px sans-serif";
         ctx.textAlign = "center";
         ctx.fillText(status, canvas.width / 2, yBase + (109 * esc));
         
-        // Restaurar alineación predeterminada
         ctx.textAlign = "left";
         
         try {{
@@ -471,24 +438,7 @@ js_v66_engine = f"""
 """
 
 st.components.v1.html(js_v66_engine, height=880, scrolling=False)
-st.caption("Desarrollado para Procesos de Calidad Entel - V6.6 Target Alignment System.")
-
-# =====================================================================
-# ⚠️ IMPORTANTE: PEGA AQUÍ TU st.components.v1.html CON EL JAVASCRIPT
-# =====================================================================
-st.components.v1.html("""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Brújula y Cámara</title>
-        </head>
-    <body>
-        ...
-    </body>
-    </html>
-""", height=650)
-
-st.success("Motor de captura activo.")
+st.caption("Desarrollado para Procesos de Calidad Entel - V6.7 Target Alignment System.")
 
 st.markdown("---")
 
