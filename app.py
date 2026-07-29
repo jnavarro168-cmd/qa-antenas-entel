@@ -266,32 +266,32 @@ js_v65_engine = f"""
         return Math.round(tiltSuave);
     }}
 
-   async function iniciarCamara() {
-    try {
-        // Pedimos al navegador la resolución más alta posible (Full HD o 4K)
-        const stream = await navigator.mediaDevices.getUserMedia({
-            video: { 
-                facingMode: "environment",
-                width: { ideal: 1920, max: 3840 },
-                height: { ideal: 1080, max: 2160 }
-            },
-            audio: false
-        });
-        
-        // Configurar el video para reproducirse en alta calidad
-        video.srcObject = stream;
-        
-        // Ajustamos la calidad interna de reproducción para que no se vea comprimido
-        video.onloadedmetadata = () => {
-            video.play();
-        };
-        
-        btnCapturar.style.display = 'block';
-    } catch (err) {
-        console.error("Error al iniciar cámara de alta resolución: ", err);
-        alert("No se pudo iniciar la cámara en alta resolución. Revisar permisos.");
-    }
-}
+   async function iniciarCamara() {{
+        try {{
+            // Pedimos al navegador la resolución más alta posible
+            const stream = await navigator.mediaDevices.getUserMedia({{
+                video: {{ 
+                    facingMode: "environment",
+                    width: {{ ideal: 1920, max: 3840 }},
+                    height: {{ ideal: 1080, max: 2160 }}
+                }},
+                audio: false
+            }});
+            
+            // Configurar el video
+            video.srcObject = stream;
+            
+            // Ajustamos la calidad interna de reproducción
+            video.onloadedmetadata = () => {{
+                video.play();
+            }};
+            
+            btnCapturar.style.display = 'block';
+        }} catch (err) {{
+            console.error("Error al iniciar cámara de alta resolución: ", err);
+            alert("No se pudo iniciar la cámara en alta resolución. Revisar permisos.");
+        }}
+    }}
 
     function procesarOrientacion(event) {{
         let heading = event.webkitCompassHeading;
