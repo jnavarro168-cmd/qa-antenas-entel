@@ -1,11 +1,11 @@
 import base64
 from datetime import datetime
 import os
+import time
 import google.generativeai as genai
 from PIL import Image
 import streamlit as st
 import streamlit.components.v1 as components
-from weasyprint import HTML
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
@@ -60,7 +60,6 @@ with st.expander("📝 1. Ingresar Datos del Sitio y Parámetros", expanded=True
             step=0.5,
         )
 
-    # --- CALIBRACIÓN Y AJUSTE ---
     compensacion_manual = st.number_input(
         "Ajuste Fino Manual (°):",
         min_value=-90.0,
@@ -83,7 +82,6 @@ st.markdown("---")
 st.subheader("📸 2. Captura de Evidencia en Terreno")
 st.info("Utiliza la cámara para alinear la antena y capturar la evidencia.")
 
-# Usamos r""" (raw string sin prefijo 'f') para evitar SyntaxError con llaves {} de JavaScript
 HTML_TEMPLATE = r"""
 <div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: system-ui, -apple-system, sans-serif; background: #0f172a; padding: 8px; border-radius: 12px;">
     
@@ -128,16 +126,12 @@ HTML_TEMPLATE = r"""
     </div>
 </div>
 
-<div id="calib-box" style="max-width: 500px; margin: 6px auto; background: #0284c7; color: white; padding: 6px 10px; border-radius: 8px; font-size: 11px;">
-    🎯 <strong>Guía de Alineación:</strong> Centre la burbuja amarilla en la cruz verde para lograr la alineación perfecta.
-</div>
-
 <div style="max-width: 500px; margin: 6px auto 0 auto; display: flex; flex-direction: column; gap: 6px;">
     <button id="btn-permisos" style="padding: 12px; font-size: 14px; font-weight: bold; background-color: #005A9C; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%;">
         📡 ACTIVAR CÁMARA Y MIRA TARGET V6.7
     </button>
     
-    <button id="btn-capturar" style="display: none; padding: 14px; font-size: 15px; font-weight: bold; background-color: #e11d48; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%; box-shadow: 0 4px 6px rgba(0,0,0,0.3);">
+    <button id="btn-capturar" style="display: none; padding: 14px; font-size: 15px; font-weight: bold; background-color: #e11d48; color: white; border: none; border-radius: 8px; cursor: pointer; width: 100%;">
         📸 CAPTURAR EVIDENCIA CON TARGET
     </button>
 </div>
@@ -149,7 +143,6 @@ HTML_TEMPLATE = r"""
     const overlayCanvas = document.getElementById('target-overlay');
     const oCtx = overlayCanvas.getContext('2d');
     const canvas = document.getElementById('snapshot');
-    
     const dataPanel = document.getElementById('data-panel');
     const btnPermisos = document.getElementById('btn-permisos');
     const btnCapturar = document.getElementById('btn-capturar');
@@ -167,206 +160,28 @@ HTML_TEMPLATE = r"""
     let declinacionCalculadaGPS = 0.0;
     let latitudActual = "Buscando...";
     let longitudActual = "Buscando...";
-    
-    let azimutSuave = null;
-    let tiltSuave = null;
-    let ultimoAzimutRenderizado = null;
-
-    const FACTOR_SUAVIDAD_AZIMUT = 0.004;
-    const FACTOR_SUAVIDAD_TILT = 0.015;
-    const UMBRAL_ZONA_MUERTA = 1.2;
-
-    function calcularDeclinacionAproximada(lat, lon) {
-        let dec = -4.5 - ((lat + 33.4) * 0.45) - ((lon + 70.6) * 0.1);
-        return parseFloat(dec.toFixed(1));
-    }
-
-    function obtenerGPS() {
-        if ("geolocation" in navigator) {
-            navigator.geolocation.getCurrentPosition((pos) => {
-                let lat = pos.coords.latitude;
-                let lon = pos.coords.longitude;
-                latitudActual = lat.toFixed(6);
-                longitudActual = lon.toFixed(6);
-                declinacionCalculadaGPS = calcularDeclinacionAproximada(lat, lon);
-                lblDecGps.innerText = (declinacionCalculadaGPS > 0 ? "+" : "") + declinacionCalculadaGPS + "°";
-            }, (err) => {
-                lblDecGps.innerText = "Std (-4.5°)";
-                declinacionCalculadaGPS = -4.5;
-                latitudActual = "Sin señal GPS";
-                longitudActual = "Sin señal GPS";
-            });
-        } else {
-            lblDecGps.innerText = "Sin GPS (-4.5°)";
-            declinacionCalculadaGPS = -4.5;
-            latitudActual = "No soportado";
-            longitudActual = "No soportado";
-        }
-    }
 
     function redimensionarCanvasOverlay() {
         overlayCanvas.width = video.clientWidth || 350;
         overlayCanvas.height = video.clientHeight || 220;
     }
 
-    function dibujarTargetGraphics(desvAz, desvTlt, estaConforme) {
-        redimensionarCanvasOverlay();
-        const w = overlayCanvas.width;
-        const h = overlayCanvas.height;
-        const cX = w / 2;
-        const cY = h / 2;
-
-        oCtx.clearRect(0, 0, w, h);
-
-        oCtx.beginPath();
-        oCtx.arc(cX, cY, 35, 0, 2 * Math.PI);
-        oCtx.fillStyle = estaConforme ? "rgba(34, 197, 94, 0.25)" : "rgba(239, 68, 68, 0.2)";
-        oCtx.fill();
-        oCtx.lineWidth = 2;
-        oCtx.strokeStyle = estaConforme ? "#22c55e" : "rgba(255,255,255,0.4)";
-        oCtx.stroke();
-
-        oCtx.beginPath();
-        oCtx.moveTo(cX - 15, cY); oCtx.lineTo(cX + 15, cY);
-        oCtx.moveTo(cX, cY - 15); oCtx.lineTo(cX, cY + 15);
-        oCtx.strokeStyle = "#38bdf8";
-        oCtx.lineWidth = 2;
-        oCtx.stroke();
-
-        const escalaPx = 5;
-        let posX = cX + (desvAz * escalaPx);
-        let posY = cY + (desvTlt * escalaPx);
-
-        posX = Math.max(15, Math.min(w - 15, posX));
-        posY = Math.max(15, Math.min(h - 15, posY));
-
-        oCtx.beginPath();
-        oCtx.arc(posX, posY, 10, 0, 2 * Math.PI);
-        oCtx.fillStyle = estaConforme ? "#22c55e" : "#facc15";
-        oCtx.fill();
-        oCtx.lineWidth = 2;
-        oCtx.strokeStyle = "#ffffff";
-        oCtx.stroke();
-
-        oCtx.beginPath();
-        oCtx.moveTo(cX, cY);
-        oCtx.lineTo(posX, posY);
-        oCtx.strokeStyle = estaConforme ? "rgba(34, 197, 94, 0.6)" : "rgba(250, 204, 21, 0.6)";
-        oCtx.lineWidth = 1.5;
-        oCtx.setLineDash([3, 3]);
-        oCtx.stroke();
-        oCtx.setLineDash([]);
-    }
-
-    function filtrarAzimutEstable(nuevoHeading) {
-        if (azimutSuave === null) {
-            azimutSuave = nuevoHeading;
-            ultimoAzimutRenderizado = Math.round(azimutSuave);
-            return azimutSuave;
-        }
-        let diferencia = nuevoHeading - azimutSuave;
-        if (diferencia > 180) diferencia -= 360;
-        if (diferencia < -180) diferencia += 360;
-        azimutSuave += diferencia * FACTOR_SUAVIDAD_AZIMUT;
-        if (azimutSuave < 0) azimutSuave += 360;
-        if (azimutSuave >= 360) azimutSuave -= 360;
-        
-        let candidatoRedondeado = Math.round(azimutSuave);
-        let deltaDisplay = candidatoRedondeado - ultimoAzimutRenderizado;
-        if (deltaDisplay > 180) deltaDisplay -= 360;
-        if (deltaDisplay < -180) deltaDisplay += 360;
-
-        if (Math.abs(deltaDisplay) >= UMBRAL_ZONA_MUERTA) {
-            ultimoAzimutRenderizado = candidatoRedondeado;
-        }
-        return ultimoAzimutRenderizado;
-    }
-
-    function filtrarTiltEstable(nuevoBeta) {
-        if (tiltSuave === null) {
-            tiltSuave = nuevoBeta;
-            return tiltSuave;
-        }
-        tiltSuave += (nuevoBeta - tiltSuave) * FACTOR_SUAVIDAD_TILT;
-        return Math.round(tiltSuave);
-    }
-
     async function iniciarCamara() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { 
-                    facingMode: "environment",
-                    width: { ideal: 1920, max: 3840 },
-                    height: { ideal: 1080, max: 2160 }
-                },
+                video: { facingMode: "environment" },
                 audio: false
             });
             video.srcObject = stream;
             video.onloadedmetadata = () => { video.play(); };
             btnCapturar.style.display = 'block';
         } catch (err) {
-            alert("No se pudo iniciar la cámara en alta resolución. Revisar permisos.");
-        }
-    }
-
-    function procesarOrientacion(event) {
-        let heading = event.webkitCompassHeading;
-        if (heading === undefined || heading === null) {
-            if (event.absolute === true && event.alpha !== null) {
-                heading = 360 - event.alpha;
-            } else {
-                heading = event.alpha;
-            }
-        }
-
-        let beta = event.beta; 
-        if (heading === null || heading === undefined || beta === null) return;
-
-        let azimutBrutoEstable = filtrarAzimutEstable(heading);
-        let azimutVerdadero = azimutBrutoEstable + declinacionCalculadaGPS + offsetManual;
-        if (azimutVerdadero < 0) azimutVerdadero += 360;
-        if (azimutVerdadero >= 360) azimutVerdadero -= 360;
-
-        let tiltReal = filtrarTiltEstable(beta);
-
-        let desvAzimut = Math.round(azimutVerdadero - tAzimut);
-        if (desvAzimut > 180) desvAzimut -= 360;
-        if (desvAzimut < -180) desvAzimut += 360;
-        let desvTilt = Math.round(tiltReal - tTilt);
-
-        document.getElementById('lbl-azimut-real').innerText = Math.round(azimutVerdadero);
-        document.getElementById('lbl-tilt-real').innerText = tiltReal;
-        document.getElementById('lbl-azimut-desv').innerText = (desvAzimut > 0 ? "+" : "") + desvAzimut;
-        document.getElementById('lbl-tilt-desv').innerText = (desvTilt > 0 ? "+" : "") + desvTilt;
-
-        const azimutOk = Math.abs(desvAzimut) <= tolAzimut;
-        const tiltOk = Math.abs(desvTilt) <= tolTilt;
-        const conforme = azimutOk && tiltOk;
-        const statusElement = document.getElementById('lbl-status');
-
-        dibujarTargetGraphics(desvAzimut, desvTilt, conforme);
-
-        if (conforme) {
-            dataPanel.style.borderColor = "#22c55e";
-            statusElement.innerText = "🎯 OBJETIVO ALINEADO (CONFORME)";
-            statusElement.style.background = "#22c55e";
-        } else {
-            dataPanel.style.borderColor = "#ef4444";
-            statusElement.innerText = "❌ FUERA DE OBJETIVO";
-            statusElement.style.background = "#ef4444";
+            alert("Error al acceder a la cámara.");
         }
     }
 
     btnPermisos.addEventListener('click', async () => {
         await iniciarCamara();
-        obtenerGPS();
-        if (window.DeviceOrientationEvent) {
-            window.addEventListener('deviceorientation', procesarOrientacion, true);
-            window.addEventListener('deviceorientationabsolute', procesarOrientacion, true);
-            document.getElementById('lbl-status').innerText = "CONECTANDO SENSORES...";
-        } else {
-            alert("Sensores no disponibles en este dispositivo.");
-        }
         btnPermisos.style.display = 'none';
     });
 
@@ -375,54 +190,7 @@ HTML_TEMPLATE = r"""
         canvas.height = video.videoHeight || 720;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        ctx.drawImage(overlayCanvas, 0, 0, canvas.width, canvas.height);
-
-        const esc = canvas.width / 400; 
-        const ahora = new Date();
-        const fechaHora = ahora.toLocaleString('es-CL', { hour12: false });
-
-        ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
-        ctx.fillRect(10 * esc, 10 * esc, 380 * esc, 60 * esc); 
-        ctx.fillStyle = "#38bdf8";
-        ctx.font = "bold " + Math.floor(12 * esc) + "px sans-serif";
-        ctx.textAlign = "left";
-        ctx.fillText(tIdentificacion + " (Dec GPS: " + declinacionCalculadaGPS + "°)", 18 * esc, 28 * esc);
         
-        ctx.fillStyle = "#cbd5e1";
-        ctx.font = Math.floor(10.5 * esc) + "px sans-serif";
-        ctx.fillText("📅 Fecha de Inspección: " + fechaHora, 18 * esc, 44 * esc);
-
-        ctx.fillStyle = "#facc15"; 
-        ctx.fillText("📍 Lat: " + latitudActual + " / Lon: " + longitudActual, 18 * esc, 60 * esc);
-        
-        const altoCaja = 135 * esc;
-        const yBase = canvas.height - altoCaja;
-
-        ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
-        ctx.fillRect(0, yBase, canvas.width, altoCaja);
-        
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "bold " + Math.floor(14 * esc) + "px sans-serif";
-        ctx.fillText("EVIDENCIA QA - TARGET V6.7", 15 * esc, yBase + (24 * esc));
-        
-        const azReal = document.getElementById('lbl-azimut-real').innerText;
-        const tltReal = document.getElementById('lbl-tilt-real').innerText;
-        const status = document.getElementById('lbl-status').innerText;
-        
-        ctx.font = Math.floor(12.5 * esc) + "px sans-serif";
-        ctx.fillStyle = "#38bdf8";
-        ctx.fillText("AZIMUT VERD: " + azReal + "° (Teórico: " + tAzimut + "°)", 15 * esc, yBase + (48 * esc));
-        ctx.fillText("TILT REAL: " + tltReal + "° (Teórico: " + tTilt + "°)", 15 * esc, yBase + (70 * esc));
-        
-        const esConforme = status.includes("CONFORME");
-        ctx.fillStyle = esConforme ? "rgba(34, 197, 94, 0.95)" : "rgba(239, 68, 68, 0.95)";
-        ctx.fillRect(10 * esc, yBase + (88 * esc), canvas.width - (20 * esc), 35 * esc);
-
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "bold " + Math.floor(13 * esc) + "px sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText(status, canvas.width / 2, yBase + (111 * esc));
-
         const imageUri = canvas.toDataURL('image/jpeg', 0.95);
         downloadLink.href = imageUri;
         downloadLink.download = tNombreArchivo + "_evidencia.jpg";
@@ -431,7 +199,6 @@ HTML_TEMPLATE = r"""
 </script>
 """
 
-# Inyección segura de variables de Python a JS
 js_v66_engine = (
     HTML_TEMPLATE
     .replace("__TEXTO_IDENTIFICACION__", texto_identificacion)
@@ -443,14 +210,17 @@ js_v66_engine = (
     .replace("__COMPENSACION_MANUAL__", str(compensacion_manual))
 )
 
-components.html(js_v66_engine, height=620, scrolling=True)
+components.html(js_v66_engine, height=520, scrolling=True)
 
 st.markdown("---")
 
 # --- 3. ANÁLISIS AUDITORÍA CON IA (GEMINI) ---
-st.subheader("🤖 3. Análisis e Inspección con IA (Gemini)")
+st.subheader("🤖 3. Configuración de IA Gemini")
 
-api_key = st.text_input("Ingresa tu API Key de Gemini:", type="password")
+api_key = st.text_input("Ingresa tu API Key de Google Gemini:", type="password")
+
+if api_key and not api_key.startswith("AIzaSy"):
+    st.warning("⚠️ Recuerda que las claves oficiales de Google AI Studio comienzan con 'AIzaSy'.")
 
 uploaded_file = st.file_uploader(
     "Carga la captura de evidencia descargada (JPG/PNG):",
@@ -462,23 +232,33 @@ if uploaded_file and api_key:
     image = Image.open(uploaded_file)
     st.image(image, caption="Evidencia Cargada", use_column_width=True)
 
-    if st.button("🔍 Auditar Evidencia con IA"):
+    if st.button("🚀 Iniciar Análisis con IA"):
         with st.spinner("Analizando la evidencia con Gemini IA..."):
-            try:
-                # Intentamos primero con gemini-2.0-flash o gemini-1.5-flash-latest
-                try:
-                    model = genai.GenerativeModel("gemini-2.0-flash")
-                except Exception:
-                    model = genai.GenerativeModel("gemini-1.5-flash-latest")
+            # Lista de modelos compatibles en orden de preferencia
+            modelos_disponibles = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+            respuesta_exitosa = False
 
-                prompt = (
-                    f"Analiza la siguiente imagen de auditoría QA para el sitio {sitio_nemonico}, sector {sector_seleccionado}.\n"
-                    f"Verifica la legibilidad del overlay, la alineación del azimut ({azimut_teorico}°) y tilt ({tilt_teorico}°), "
-                    f"y confirma si cumple con los estándares de instalación y estado del equipo visible."
-                )
-                response = model.generate_content([prompt, image])
-                st.success("✅ Análisis Completado")
-                st.markdown("### Resultado de la Auditoría IA:")
-                st.write(response.text)
-            except Exception as e:
-                st.error(f"Error al analizar con Gemini: {e}")
+            for nombre_modelo in modelos_disponibles:
+                try:
+                    model = genai.GenerativeModel(nombre_modelo)
+                    prompt = (
+                        f"Actúa como un auditor senior QA. Analiza la imagen para el sitio {sitio_nemonico}, sector {sector_seleccionado}.\n"
+                        f"Verifica el azimut teórico ({azimut_teorico}°) y tilt teórico ({tilt_teorico}°).\n"
+                        f"Indica claramente si la alineación cumple con los parámetros requeridos."
+                    )
+                    response = model.generate_content([prompt, image])
+                    st.success(f"✅ Análisis Completado (Modelo utilizado: {nombre_modelo})")
+                    st.markdown("### Resultado de la Auditoría IA:")
+                    st.write(response.text)
+                    respuesta_exitosa = True
+                    break
+                except Exception as e:
+                    err_msg = str(e)
+                    if "429" in err_msg or "Quota" in err_msg:
+                        st.error("⏳ Límites de velocidad/cuota alcanzados. Por favor espera 1 minuto antes de presionar el botón nuevamente.")
+                        respuesta_exitosa = True
+                        break
+                    continue
+
+            if not respuesta_exitosa:
+                st.error("❌ No se pudo conectar con los modelos de Gemini. Revisa que tu API Key sea correcta y esté activa en Google AI Studio.")
