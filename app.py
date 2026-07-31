@@ -83,8 +83,8 @@ st.markdown("---")
 st.subheader("📸 2. Captura de Evidencia en Terreno")
 st.info("Utiliza la cámara para alinear la antena y capturar la evidencia.")
 
-# Plantilla HTML/JS pura sin f-string para evitar conflictos de sintaxis
-js_v66_template = """
+# Usamos r""" (raw string sin prefijo 'f') para evitar SyntaxError con llaves {} de JavaScript
+HTML_TEMPLATE = r"""
 <div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: system-ui, -apple-system, sans-serif; background: #0f172a; padding: 8px; border-radius: 12px;">
     
     <div style="position: relative; width: 100%; border-radius: 10px; overflow: hidden; background: #000;">
@@ -431,9 +431,10 @@ js_v66_template = """
 </script>
 """
 
-# Reemplazo seguro de variables
+# Inyección segura de variables de Python a JS
 js_v66_engine = (
-    js_v66_template.replace("__TEXTO_IDENTIFICACION__", texto_identificacion)
+    HTML_TEMPLATE
+    .replace("__TEXTO_IDENTIFICACION__", texto_identificacion)
     .replace("__NOMBRE_ARCHIVO_SECTOR__", nombre_archivo_sector)
     .replace("__AZIMUT_TEORICO__", str(azimut_teorico))
     .replace("__TILT_TEORICO__", str(tilt_teorico))
