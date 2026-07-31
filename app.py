@@ -22,56 +22,60 @@ st.markdown(
 
 # --- 1. DATOS DEL SITIO (INPUTS) ---
 with st.expander("📝 1. Ingresar Datos del Sitio y Parámetros", expanded=True):
-  col_id1, col_id2 = st.columns([2, 1])
+    col_id1, col_id2 = st.columns([2, 1])
 
-  with col_id1:
-    sitio_nemonico = (
-        st.text_input("Nemónico del Sitio / Nodo:", value="SA542", max_chars=20)
-        .strip()
-        .upper()
-    )
+    with col_id1:
+        sitio_nemonico = (
+            st.text_input(
+                "Nemónico del Sitio / Nodo:", value="SA542", max_chars=20
+            )
+            .strip()
+            .upper()
+        )
 
-  with col_id2:
-    sector_seleccionado = st.selectbox(
-        "Sector:",
-        options=["Sector 1", "Sector 2", "Sector 3", "Sector 4"],
-        index=0,
-    )
+    with col_id2:
+        sector_seleccionado = st.selectbox(
+            "Sector:",
+            options=["Sector 1", "Sector 2", "Sector 3", "Sector 4"],
+            index=0,
+        )
 
-  col_input1, col_input2 = st.columns(2)
+    col_input1, col_input2 = st.columns(2)
 
-  with col_input1:
-    azimut_teorico = st.number_input(
-        "Azimut Teórico (°)",
-        min_value=0.0,
-        max_value=360.0,
-        value=300.0,
-        step=1.0,
-    )
+    with col_input1:
+        azimut_teorico = st.number_input(
+            "Azimut Teórico (°)",
+            min_value=0.0,
+            max_value=360.0,
+            value=300.0,
+            step=1.0,
+        )
 
-  with col_input2:
-    tilt_teorico = st.number_input(
-        "Tilt Teórico (°)",
+    with col_input2:
+        tilt_teorico = st.number_input(
+            "Tilt Teórico (°)",
+            min_value=-90.0,
+            max_value=90.0,
+            value=85.0,
+            step=0.5,
+        )
+
+    # --- CALIBRACIÓN Y AJUSTE ---
+    compensacion_manual = st.number_input(
+        "Ajuste Fino Manual (°):",
         min_value=-90.0,
         max_value=90.0,
-        value=85.0,
+        value=0.0,
         step=0.5,
     )
-
-  # --- CALIBRACIÓN Y AJUSTE ---
-  compensacion_manual = st.number_input(
-      "Ajuste Fino Manual (°):",
-      min_value=-90.0,
-      max_value=90.0,
-      value=0.0,
-      step=0.5,
-  )
 
 TOL_AZIMUT = 5.0
 TOL_TILT = 2.0
 
 texto_identificacion = f"{sitio_nemonico} - {sector_seleccionado.upper()}"
-nombre_archivo_sector = f"{sitio_nemonico}_{sector_seleccionado.replace(' ', '-')}"
+nombre_archivo_sector = (
+    f"{sitio_nemonico}_{sector_seleccionado.replace(' ', '-')}"
+)
 
 st.markdown("---")
 
@@ -411,300 +415,4 @@ js_v66_engine = f"""
         
         const esConforme = status.includes("CONFORME");
         ctx.fillStyle = esConforme ? "rgba(34, 197, 94, 0.95)" : "rgba(239, 68, 68, 0.95)";
-        ctx.fillRect(10 * esc, yBase + (88 * esc), canvas.width - (20 * esc), 32 * esc);
-        
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "bold " + Math.floor(13 * esc) + "px sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText(status, canvas.width / 2, yBase + (109 * esc));
-        ctx.textAlign = "left";
-        
-        try {{
-            const dataURL = canvas.toDataURL('image/png');
-            downloadLink.href = dataURL;
-            downloadLink.download = "QA_" + tNombreArchivo + "_AZ" + azReal + "_TLT" + tltReal + ".png";
-            downloadLink.click();
-        }} catch(e) {{
-            alert("Captura completada.");
-        }}
-    }});
-</script>
-"""
-
-st.components.v1.html(js_v66_engine, height=880, scrolling=False)
-
-st.markdown("---")
-
-# --- 3. AUDITORÍA CON IA Y GENERACIÓN DE REPORTES ---
-st.subheader("🧠 3. Auditoría Inteligente con IA y PDF")
-st.write(
-    "Carga la evidencia capturada para auditarla mediante **Gemini AI** y"
-    " generar el reporte oficial."
-)
-
-imagen_subida = st.file_uploader(
-    "Cargar captura con marca de agua (PNG/JPG)", type=["png", "jpg", "jpeg"]
-)
-
-if imagen_subida is not None:
-  img = Image.open(imagen_subida)
-  st.image(img, caption="Evidencia cargada para análisis", use_column_width=True)
-
-  st.markdown("#### 🔑 Configuración de IA Gemini")
-  api_key_input = st.text_input(
-      "Ingresa tu API Key de Google Gemini:",
-      type="password",
-      help="Clave obtenida en Google AI Studio.",
-  ).strip()
-
-  analisis_ia_texto = ""
-
-  if st.button("🚀 Iniciar Análisis con IA"):
-    if not api_key_input:
-      st.error(
-          "⚠️ Por favor ingresa una API Key válida antes de iniciar el"
-          " análisis."
-      )
-    else:
-      with st.spinner("Analizando evidencia fotográfica con Gemini AI..."):
-        try:
-          genai.configure(api_key=api_key_input)
-
-          prompt = f"""
-                    Actúa como un auditor senior de Control de Calidad (QA) para redes de telecomunicaciones Entel.
-                    Analiza la imagen adjunta correspondiente al sitio {sitio_nemonico}, {sector_seleccionado}.
-                    1. Revisa la marca de agua y telemetría de la captura (Azimut, Tilt, Coordenadas GPS, Estado de Alineación).
-                    2. Verifica visualmente las condiciones físicas visibles del entorno.
-                    3. Genera una evaluación técnica concisa en un párrafo, indicando si la evidencia es formalmente válida y cumple con los parámetros de alineación requeridos.
-                    """
-
-          modelos_disponibles = [
-              "gemini-1.5-flash",
-              "gemini-1.5-flash-8b",
-              "gemini-2.0-flash",
-          ]
-          exito = False
-
-          for nombre_modelo in modelos_disponibles:
-            try:
-              model = genai.GenerativeModel(nombre_modelo)
-              response = model.generate_content([prompt, img])
-              analisis_ia_texto = response.text
-              st.session_state["analisis_ia"] = analisis_ia_texto
-              st.success(
-                  f"¡Análisis completado exitosamente con {nombre_modelo}!"
-              )
-              exito = True
-              break
-            except Exception:
-              continue
-
-          if not exito:
-            st.error(
-                "❌ No se pudo conectar con los modelos de Gemini. Revisa que"
-                " tu API Key esté activa en Google AI Studio."
-            )
-
-        except Exception as e:
-          st.error(f"Error general de configuración: {str(e)}")
-
-    # --- PROMPT LIMPIO SIN ERRORES DE SANGRÍA ---
-          prompt = (
-              f"Actúa como un auditor senior de Control de Calidad (QA) para"
-              f" redes de telecomunicaciones Entel. Analiza la imagen adjunta"
-              f" correspondiente al sitio {sitio_nemonico},"
-              f" {sector_seleccionado}.\n1. Revisa la marca de agua y"
-              " telemetría de la captura (Azimut, Tilt, Coordenadas GPS, Estado"
-              " de Alineación).\n2. Verifica visualmente las condiciones"
-              " físicas visibles del entorno.\n3. Genera una evaluación técnica"
-              " concisa en un párrafo, indicando si la evidencia es formalmente"
-              " válida y cumple con los parámetros de alineación requeridos."
-          )
-
-            # Lista de modelos a probar (si uno no tiene cuota gratuita, intenta con el siguiente)
-            modelos_disponibles = [
-                "gemini-1.5-flash",
-                "gemini-1.5-flash-8b",
-                "gemini-2.0-flash",
-            ]
-            exito = False
-
-            for nombre_modelo in modelos_disponibles:
-              try:
-                model = genai.GenerativeModel(nombre_modelo)
-                response = model.generate_content([prompt, img])
-                analisis_ia_texto = response.text
-
-                # Guardar resultado en sesión
-                st.session_state["analisis_ia"] = analisis_ia_texto
-                st.success(
-                    f"¡Análisis completado exitosamente con {nombre_modelo}!"
-                )
-                exito = True
-                break  # Sale del ciclo si tuvo éxito
-              except Exception as e_mod:
-                # Si falla este modelo por cuota o disponibilidad, continúa con el siguiente
-                continue
-
-            if not exito:
-              st.error(
-                  "❌ No se pudo conectar con los modelos de Gemini. Revisa"
-                  " que tu API Key esté activa en Google AI Studio o que tenga"
-                  " cuota disponible."
-              )
-
-          except Exception as e:
-            st.error(f"Error de configuración general: {str(e)}")
-
-                    Actúa como un auditor senior de Control de Calidad (QA) para redes de telecomunicaciones Entel.
-                    Analiza la imagen adjunta correspondiente al sitio {sitio_nemonico}, {sector_seleccionado}.
-                    1. Revisa la marca de agua y telemetría de la captura (Azimut, Tilt, Coordenadas GPS, Estado de Alineación).
-                    2. Verifica visualmente las condiciones físicas visibles del entorno.
-                    3. Genera una evaluación técnica concisa en un párrafo, indicando si la evidencia es formalmente válida y cumple con los parámetros de alineación requeridos.
-                    """
-
-          # Selección directa y limpia del modelo activo para evitar peticiones repetidas
-          nombre_modelo = "gemini-2.0-flash"
-          try:
-            model = genai.GenerativeModel(nombre_modelo)
-            response = model.generate_content([prompt, img])
-            analisis_ia_texto = response.text
-            st.session_state["analisis_ia"] = analisis_ia_texto
-            st.success("¡Análisis completado exitosamente con Gemini AI!")
-          except Exception as e_gen:
-            err_msg = str(e_gen)
-            if "429" in err_msg or "Quota exceeded" in err_msg:
-              st.warning(
-                  "⏳ **Límite de velocidad de Google alcanzado.** Por favor"
-                  " espera **2 minutos** antes de presionar el botón de nuevo."
-              )
-            else:
-              # Fallback secundario si el modelo principal no responde
-              try:
-                model_alt = genai.GenerativeModel("gemini-1.5-flash")
-                response = model_alt.generate_content([prompt, img])
-                analisis_ia_texto = response.text
-                st.session_state["analisis_ia"] = analisis_ia_texto
-                st.success("¡Análisis completado exitosamente!")
-              except Exception as e_alt:
-                st.error(f"Error en la consulta: {str(e_alt)}")
-
-        except Exception as e:
-          st.error(f"Error general de configuración: {str(e)}")
-
-  if "analisis_ia" in st.session_state and st.session_state["analisis_ia"]:
-    st.info(f"**Análisis Generado por IA:**\n\n{st.session_state['analisis_ia']}")
-
-  st.markdown("---")
-  if st.button("📄 Generar e Imprimir Informe PDF Oficial"):
-    with st.spinner("Generando Informe PDF..."):
-      imagen_subida.seek(0)
-      encoded_string = base64.b64encode(imagen_subida.read()).decode("utf-8")
-      mime = (
-          "image/png"
-          if imagen_subida.name.endswith(".png")
-          else "image/jpeg"
-      )
-      img_base64_str = f"data:{mime};base64,{encoded_string}"
-
-      fecha_reporte = datetime.now().strftime("%d-%m-%Y, %H:%M:%S")
-      ia_resumen = st.session_state.get(
-          "analisis_ia",
-          "Análisis de IA no ejecutado o sin observaciones adicionales.",
-      )
-
-      html_content = f"""
-            <!DOCTYPE html>
-            <html lang="es">
-            <head>
-            <meta charset="UTF-8">
-            <style>
-              @page {{ size: A4; margin: 12mm 12mm; }}
-              body {{ font-family: 'Helvetica Neue', Arial, sans-serif; color: #0f172a; font-size: 9pt; line-height: 1.4; }}
-              .header-table {{ width: 100%; border-collapse: collapse; margin-bottom: 12px; }}
-              .header-table td {{ vertical-align: middle; }}
-              .logo-box {{ background-color: #005A9C; color: #ffffff; font-weight: bold; font-size: 16pt; padding: 10px 15px; border-radius: 6px; text-align: center; }}
-              .header-title-box {{ padding-left: 15px; }}
-              .main-title {{ font-size: 14pt; font-weight: bold; color: #005A9C; margin: 0; text-transform: uppercase; }}
-              .sub-title {{ font-size: 9.5pt; color: #475569; margin-top: 2px; }}
-
-              .section-header {{ background-color: #005A9C; color: #ffffff; padding: 6px 10px; font-weight: bold; font-size: 10pt; border-radius: 4px; margin-top: 12px; margin-bottom: 8px; text-transform: uppercase; }}
-
-              table.info-table {{ width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 9pt; }}
-              table.info-table th, table.info-table td {{ padding: 6px 8px; border: 1px solid #cbd5e1; text-align: left; }}
-              table.info-table th {{ background-color: #f1f5f9; font-weight: bold; color: #1e293b; width: 25%; }}
-              table.info-table td {{ width: 25%; background-color: #ffffff; }}
-
-              .ia-box {{ background-color: #f8fafc; border-left: 4px solid #0284c7; padding: 10px; font-size: 8.5pt; border-radius: 4px; margin-bottom: 10px; }}
-
-              .photo-box {{ text-align: center; margin: 10px 0; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; background-color: #ffffff; }}
-              .photo-box img {{ max-width: 100%; max-height: 400px; border-radius: 4px; object-fit: contain; }}
-              .footer {{ margin-top: 15px; padding-top: 8px; border-top: 1px solid #cbd5e1; font-size: 7.5pt; color: #64748b; text-align: center; }}
-            </style>
-            </head>
-            <body>
-
-            <table class="header-table">
-              <tr>
-                <td style="width: 25%;">
-                  <div class="logo-box">ENTEL</div>
-                </td>
-                <td class="header-title-box">
-                  <div class="main-title">INFORME TÉCNICO Y AUDITORÍA IA DE ALINEACIÓN</div>
-                  <div class="sub-title">Sistema de Verificación Target V6.7 - Control de Calidad QA</div>
-                </td>
-              </tr>
-            </table>
-
-            <div class="section-header">1. Datos del Sitio e Inspección</div>
-            <table class="info-table">
-              <tr>
-                <th>Sitio / Nemónico:</th>
-                <td>{sitio_nemonico}</td>
-                <th>Sector / Celda:</th>
-                <td>{sector_seleccionado}</td>
-              </tr>
-              <tr>
-                <th>Azimut Teórico:</th>
-                <td>{azimut_teorico}°</td>
-                <th>Tilt Teórico:</th>
-                <td>{tilt_teorico}°</td>
-              </tr>
-              <tr>
-                <th>Fecha de Inspección:</th>
-                <td colspan="3">{fecha_reporte}</td>
-              </tr>
-            </table>
-
-            <div class="section-header">2. Dictamen Inteligente de Auditoría (Gemini AI)</div>
-            <div class="ia-box">
-              {ia_resumen}
-            </div>
-
-            <div class="section-header">3. Evidencia Fotográfica y Telemetría</div>
-            <div class="photo-box">
-              <img src="{img_base64_str}" alt="Evidencia de Alineación" />
-            </div>
-
-            <div class="footer">
-              Informe emitido automáticamente por el Sistema Target V6.7 AI - Entel QA Control.
-            </div>
-
-            </body>
-            </html>
-            """
-
-      archivo_pdf = f"Reporte_QA_{sitio_nemonico}_{sector_seleccionado.replace(' ', '_')}.pdf"
-      HTML(string=html_content).write_pdf(archivo_pdf)
-
-      with open(archivo_pdf, "rb") as pdf_file:
-        st.download_button(
-            label="💾 Descargar Informe PDF Oficial",
-            data=pdf_file,
-            file_name=archivo_pdf,
-            mime="application/pdf",
-        )
-      st.success("¡Informe PDF generado exitosamente!")
-
-      if os.path.exists(archivo_pdf):
-        os.remove(archivo_pdf)
+        ctx.fillRect(10 * esc, yBase + (88 * esc), canvas.
