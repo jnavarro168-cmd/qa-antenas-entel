@@ -478,54 +478,31 @@ if imagen_subida is not None:
                     3. Genera una evaluación técnica concisa en un párrafo, indicando si la evidencia es formalmente válida y cumple con los parámetros de alineación requeridos.
                     """
 
-          # --- CONSULTA DINÁMICA DE MODELOS HABILITADOS ---
-          modelos_disponibles = []
+          # Selección directa y limpia del modelo activo para evitar peticiones repetidas
+          nombre_modelo = "gemini-2.0-flash"
           try:
-            for m in genai.list_models():
-              if "generateContent" in m.supported_generation_methods:
-                modelos_disponibles.append(m.name)
-          except Exception:
-            pass
-
-          # Buscar modelo tipo 'flash' habilitado
-          modelo_elegido = None
-          for m_name in modelos_disponibles:
-            if "flash" in m_name:
-              modelo_elegido = m_name
-              break
-
-          if not modelo_elegido and modelos_disponibles:
-            modelo_elegido = modelos_disponibles[0]
-
-          # Lista de respaldo si la consulta no devuelve ningún modelo
-          modelos_a_intentar = (
-              [modelo_elegido] if modelo_elegido else []
-          ) + [
-              "models/gemini-2.5-flash",
-              "models/gemini-1.5-flash",
-              "gemini-2.0-flash",
-          ]
-
-          exito = False
-          ultimo_error = ""
-
-          for nom_mod in modelos_a_intentar:
-            if not nom_mod:
-              continue
-            try:
-              model = genai.GenerativeModel(nom_mod)
-              response = model.generate_content([prompt, img])
-              analisis_ia_texto = response.text
-              st.session_state["analisis_ia"] = analisis_ia_texto
-              st.success(f"¡Análisis completado exitosamente con {nom_mod}!")
-              exito = True
-              break
-            except Exception as e_mod:
-              ultimo_error = str(e_mod)
-              continue
-
-          if not exito:
-            st.error(f"Error al conectar con Gemini AI: {ultimo_error}")
+            model = genai.GenerativeModel(nombre_modelo)
+            response = model.generate_content([prompt, img])
+            analisis_ia_texto = response.text
+            st.session_state["analisis_ia"] = analisis_ia_texto
+            st.success("¡Análisis completado exitosamente con Gemini AI!")
+          except Exception as e_gen:
+            err_msg = str(e_gen)
+            if "429" in err_msg or "Quota exceeded" in err_msg:
+              st.warning(
+                  "⏳ **Límite de velocidad de Google alcanzado.** Por favor"
+                  " espera **2 minutos** antes de presionar el botón de nuevo."
+              )
+            else:
+              # Fallback secundario si el modelo principal no responde
+              try:
+                model_alt = genai.GenerativeModel("gemini-1.5-flash")
+                response = model_alt.generate_content([prompt, img])
+                analisis_ia_texto = response.text
+                st.session_state["analisis_ia"] = analisis_ia_texto
+                st.success("¡Análisis completado exitosamente!")
+              except Exception as e_alt:
+                st.error(f"Error en la consulta: {str(e_alt)}")
 
         except Exception as e:
           st.error(f"Error general de configuración: {str(e)}")
