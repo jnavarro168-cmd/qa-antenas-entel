@@ -452,9 +452,9 @@ if imagen_subida is not None:
 
   st.markdown("#### 🔑 Configuración de IA Gemini")
   api_key_input = st.text_input(
-      "Ingresa tu API Key de Google Gemini (obtenida en aistudio.google.com):",
+      "Ingresa tu API Key de Google Gemini:",
       type="password",
-      help="Crea una clave gratuita en https://aistudio.google.com/",
+      help="Clave obtenida en Google AI Studio.",
   ).strip()
 
   analisis_ia_texto = ""
@@ -462,13 +462,26 @@ if imagen_subida is not None:
   if st.button("🚀 Iniciar Análisis con IA"):
     if not api_key_input:
       st.error(
-          "⚠️ Por favor ingresa una API Key válida antes de iniciar el análisis."
+          "⚠️ Por favor ingresa una API Key válida antes de iniciar el"
+          " análisis."
       )
     else:
       with st.spinner("Analizando evidencia fotográfica con Gemini AI..."):
         try:
           genai.configure(api_key=api_key_input)
-          model = genai.GenerativeModel("gemini-1.5-flash")
+
+          # --- DETECCIÓN AUTOMÁTICA DE MODELO DISPONIBLE ---
+          nombre_modelo = "gemini-2.0-flash"  # Default preferido
+          try:
+            for m in genai.list_models():
+              if "generateContent" in m.supported_generation_methods:
+                if "flash" in m.name or "gemini" in m.name:
+                  nombre_modelo = m.name
+                  break
+          except Exception:
+            pass
+
+          model = genai.GenerativeModel(nombre_modelo)
 
           prompt = f"""
                     Actúa como un auditor senior de Control de Calidad (QA) para redes de telecomunicaciones Entel.
@@ -484,11 +497,7 @@ if imagen_subida is not None:
           st.success("¡Análisis de IA completado exitosamente!")
 
         except Exception as e:
-          st.error(
-              f"Error al conectar con Gemini: {str(e)}\n\nAsegúrate de que la"
-              " clave comience con 'AIzaSy' y que esté activa en Google AI"
-              " Studio."
-          )
+          st.error(f"Error al conectar con Gemini: {str(e)}")
 
   if "analisis_ia" in st.session_state and st.session_state["analisis_ia"]:
     st.info(f"**Análisis Generado por IA:**\n\n{st.session_state['analisis_ia']}")
