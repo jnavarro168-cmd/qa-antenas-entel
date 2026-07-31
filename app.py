@@ -470,19 +470,6 @@ if imagen_subida is not None:
         try:
           genai.configure(api_key=api_key_input)
 
-          # --- DETECCIÓN AUTOMÁTICA DE MODELO DISPONIBLE ---
-          nombre_modelo = "gemini-2.0-flash"  # Default preferido
-          try:
-            for m in genai.list_models():
-              if "generateContent" in m.supported_generation_methods:
-                if "flash" in m.name or "gemini" in m.name:
-                  nombre_modelo = m.name
-                  break
-          except Exception:
-            pass
-
-          model = genai.GenerativeModel(nombre_modelo)
-
           prompt = f"""
                     Actúa como un auditor senior de Control de Calidad (QA) para redes de telecomunicaciones Entel.
                     Analiza la imagen adjunta correspondiente al sitio {sitio_nemonico}, {sector_seleccionado}.
@@ -491,13 +478,38 @@ if imagen_subida is not None:
                     3. Genera una evaluación técnica concisa en un párrafo, indicando si la evidencia es formalmente válida y cumple con los parámetros de alineación requeridos.
                     """
 
-          response = model.generate_content([prompt, img])
-          analisis_ia_texto = response.text
-          st.session_state["analisis_ia"] = analisis_ia_texto
-          st.success("¡Análisis de IA completado exitosamente!")
+          # --- ESTRATEGIA DE REINTENTO (FALLBACK) MULTI-MODELO ---
+          modelos_a_probar = [
+              "gemini-2.0-flash",
+              "gemini-1.5-flash",
+              "gemini-1.5-pro",
+          ]
+          exito = False
+          ultimo_error = ""
+
+          for nombre_modelo in modelos_a_probar:
+            try:
+              model = genai.GenerativeModel(nombre_modelo)
+              response = model.generate_content([prompt, img])
+              analisis_ia_texto = response.text
+              st.session_state["analisis_ia"] = analisis_ia_texto
+              st.success(
+                  f"¡Análisis de IA completado exitosamente con {nombre_modelo}!"
+              )
+              exito = True
+              break
+            except Exception as e_mod:
+              ultimo_error = str(e_mod)
+              continue
+
+          if not exito:
+            st.error(
+                "Error al conectar con los modelos de Gemini. Detalle:"
+                f" {ultimo_error}"
+            )
 
         except Exception as e:
-          st.error(f"Error al conectar con Gemini: {str(e)}")
+          st.error(f"Error general en la configuración de Gemini: {str(e)}")
 
   if "analisis_ia" in st.session_state and st.session_state["analisis_ia"]:
     st.info(f"**Análisis Generado por IA:**\n\n{st.session_state['analisis_ia']}")
