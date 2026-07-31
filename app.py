@@ -465,7 +465,12 @@ if uploaded_file and api_key:
     if st.button("🔍 Auditar Evidencia con IA"):
         with st.spinner("Analizando la evidencia con Gemini IA..."):
             try:
-                model = genai.GenerativeModel("gemini-1.5-flash")
+                # Intentamos primero con gemini-2.0-flash o gemini-1.5-flash-latest
+                try:
+                    model = genai.GenerativeModel("gemini-2.0-flash")
+                except Exception:
+                    model = genai.GenerativeModel("gemini-1.5-flash-latest")
+
                 prompt = (
                     f"Analiza la siguiente imagen de auditoría QA para el sitio {sitio_nemonico}, sector {sector_seleccionado}.\n"
                     f"Verifica la legibilidad del overlay, la alineación del azimut ({azimut_teorico}°) y tilt ({tilt_teorico}°), "
