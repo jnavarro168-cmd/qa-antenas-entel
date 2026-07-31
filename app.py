@@ -83,7 +83,7 @@ st.markdown("---")
 st.subheader("📸 2. Captura de Evidencia en Terreno")
 st.info("Utiliza la cámara para alinear la antena y capturar la evidencia.")
 
-js_v66_engine = f"""
+js_v66_engine = """
 <div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: system-ui, -apple-system, sans-serif; background: #0f172a; padding: 8px; border-radius: 12px;">
     
     <div style="position: relative; width: 100%; border-radius: 10px; overflow: hidden; background: #000;">
@@ -415,4 +415,4 @@ js_v66_engine = f"""
         
         const esConforme = status.includes("CONFORME");
         ctx.fillStyle = esConforme ? "rgba(34, 197, 94, 0.95)" : "rgba(239, 68, 68, 0.95)";
-        ctx.fillRect(10 * esc, yBase + (88 * esc), canvas.
+        ctx.fillRect(10 * esc, yBase + (88 * esc), canvas."""
