@@ -4,6 +4,7 @@ import os
 import google.generativeai as genai
 from PIL import Image
 import streamlit as st
+import streamlit.components.v1 as components
 from weasyprint import HTML
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
@@ -16,8 +17,7 @@ st.set_page_config(
 
 st.title("📡 Entel QA - Inspector Target V6.7 (con IA)")
 st.markdown(
-    "**Sistema de Inspección, Alineación y Auditoría con Inteligencia"
-    " Artificial**"
+    "**Sistema de Inspección, Alineación y Auditoría con Inteligencia Artificial**"
 )
 
 # --- 1. DATOS DEL SITIO (INPUTS) ---
@@ -83,7 +83,7 @@ st.markdown("---")
 st.subheader("📸 2. Captura de Evidencia en Terreno")
 st.info("Utiliza la cámara para alinear la antena y capturar la evidencia.")
 
-js_v66_engine = """
+js_v66_engine = f"""
 <div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: system-ui, -apple-system, sans-serif; background: #0f172a; padding: 8px; border-radius: 12px;">
     
     <div style="position: relative; width: 100%; border-radius: 10px; overflow: hidden; background: #000;">
@@ -370,8 +370,8 @@ js_v66_engine = """
     }});
 
     btnCapturar.addEventListener('click', () => {{
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        canvas.width = video.videoWidth || 1280;
+        canvas.height = video.videoHeight || 720;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         ctx.drawImage(overlayCanvas, 0, 0, canvas.width, canvas.height);
@@ -415,4 +415,52 @@ js_v66_engine = """
         
         const esConforme = status.includes("CONFORME");
         ctx.fillStyle = esConforme ? "rgba(34, 197, 94, 0.95)" : "rgba(239, 68, 68, 0.95)";
-        ctx.fillRect(10 * esc, yBase + (88 * esc), canvas."""
+        ctx.fillRect(10 * esc, yBase + (88 * esc), canvas.width - (20 * esc), 35 * esc);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold " + Math.floor(13 * esc) + "px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(status, canvas.width / 2, yBase + (111 * esc));
+
+        const imageUri = canvas.toDataURL('image/jpeg', 0.95);
+        downloadLink.href = imageUri;
+        downloadLink.download = tNombreArchivo + "_evidencia.jpg";
+        downloadLink.click();
+    }});
+</script>
+"""
+
+components.html(js_v66_engine, height=620, scrolling=True)
+
+st.markdown("---")
+
+# --- 3. ANÁLISIS AUDITORÍA CON IA (GEMINI) ---
+st.subheader("🤖 3. Análisis e Inspección con IA (Gemini)")
+
+api_key = st.text_input("Ingresa tu API Key de Gemini:", type="password")
+
+uploaded_file = st.file_uploader(
+    "Carga la captura de evidencia descargada (JPG/PNG):",
+    type=["jpg", "jpeg", "png"],
+)
+
+if uploaded_file and api_key:
+    genai.configure(api_key=api_key)
+    image = Image.open(uploaded_file)
+    st.image(image, caption="Evidencia Cargada", use_column_width=True)
+
+    if st.button("🔍 Auditar Evidencia con IA"):
+        with st.spinner("Analizando la evidencia con Gemini IA..."):
+            try:
+                model = genai.GenerativeModel("gemini-1.5-flash")
+                prompt = (
+                    f"Analiza la siguiente imagen de auditoría QA para el sitio {sitio_nemonico}, sector {sector_seleccionado}.\n"
+                    f"Verifica la legibilidad del overlay, la alineación del azimut ({azimut_teorico}°) y tilt ({tilt_teorico}°), "
+                    f"y confirma si cumple con los estándares de instalación y estado del equipo visible."
+                )
+                response = model.generate_content([prompt, image])
+                st.success("✅ Análisis Completado")
+                st.markdown("### Resultado de la Auditoría IA:")
+                st.write(response.text)
+            except Exception as e:
+                st.error(f"Error al analizar con Gemini: {e}")
