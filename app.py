@@ -83,7 +83,8 @@ st.markdown("---")
 st.subheader("📸 2. Captura de Evidencia en Terreno")
 st.info("Utiliza la cámara para alinear la antena y capturar la evidencia.")
 
-js_v66_engine = f"""
+# Plantilla HTML/JS pura sin f-string para evitar conflictos de sintaxis
+js_v66_template = """
 <div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: system-ui, -apple-system, sans-serif; background: #0f172a; padding: 8px; border-radius: 12px;">
     
     <div style="position: relative; width: 100%; border-radius: 10px; overflow: hidden; background: #000;">
@@ -92,7 +93,7 @@ js_v66_engine = f"""
         <canvas id="snapshot" style="display: none; width: 100%; border-radius: 10px;"></canvas>
         
         <div style="position: absolute; top: 8px; left: 8px; background: rgba(15, 23, 42, 0.85); color: #38bdf8; padding: 4px 8px; border-radius: 6px; font-weight: bold; font-size: 11px; border: 1px solid rgba(56, 189, 248, 0.3);">
-            {texto_identificacion} | Dec GPS: <span id="lbl-dec-gps">Calculando...</span>
+            __TEXTO_IDENTIFICACION__ | Dec GPS: <span id="lbl-dec-gps">Calculando...</span>
         </div>
 
         <div id="badge-accuracy" style="position: absolute; top: 8px; right: 8px; background: rgba(15, 23, 42, 0.85); color: #22c55e; padding: 4px 8px; border-radius: 6px; font-weight: bold; font-size: 11px; border: 1px solid rgba(34, 197, 94, 0.3);">
@@ -155,13 +156,13 @@ js_v66_engine = f"""
     const downloadLink = document.getElementById('download-link');
     const lblDecGps = document.getElementById('lbl-dec-gps');
     
-    const tIdentificacion = "{texto_identificacion}";
-    const tNombreArchivo = "{nombre_archivo_sector}";
-    const tAzimut = {azimut_teorico};
-    const tTilt = {tilt_teorico};
-    const tolAzimut = {TOL_AZIMUT};
-    const tolTilt = {TOL_TILT};
-    const offsetManual = {compensacion_manual};
+    const tIdentificacion = "__TEXTO_IDENTIFICACION__";
+    const tNombreArchivo = "__NOMBRE_ARCHIVO_SECTOR__";
+    const tAzimut = __AZIMUT_TEORICO__;
+    const tTilt = __TILT_TEORICO__;
+    const tolAzimut = __TOL_AZIMUT__;
+    const tolTilt = __TOL_TILT__;
+    const offsetManual = __COMPENSACION_MANUAL__;
 
     let declinacionCalculadaGPS = 0.0;
     let latitudActual = "Buscando...";
@@ -175,40 +176,40 @@ js_v66_engine = f"""
     const FACTOR_SUAVIDAD_TILT = 0.015;
     const UMBRAL_ZONA_MUERTA = 1.2;
 
-    function calcularDeclinacionAproximada(lat, lon) {{
+    function calcularDeclinacionAproximada(lat, lon) {
         let dec = -4.5 - ((lat + 33.4) * 0.45) - ((lon + 70.6) * 0.1);
         return parseFloat(dec.toFixed(1));
-    }}
+    }
 
-    function obtenerGPS() {{
-        if ("geolocation" in navigator) {{
-            navigator.geolocation.getCurrentPosition((pos) => {{
+    function obtenerGPS() {
+        if ("geolocation" in navigator) {
+            navigator.geolocation.getCurrentPosition((pos) => {
                 let lat = pos.coords.latitude;
                 let lon = pos.coords.longitude;
                 latitudActual = lat.toFixed(6);
                 longitudActual = lon.toFixed(6);
                 declinacionCalculadaGPS = calcularDeclinacionAproximada(lat, lon);
                 lblDecGps.innerText = (declinacionCalculadaGPS > 0 ? "+" : "") + declinacionCalculadaGPS + "°";
-            }}, (err) => {{
+            }, (err) => {
                 lblDecGps.innerText = "Std (-4.5°)";
                 declinacionCalculadaGPS = -4.5;
                 latitudActual = "Sin señal GPS";
                 longitudActual = "Sin señal GPS";
-            }});
-        }} else {{
+            });
+        } else {
             lblDecGps.innerText = "Sin GPS (-4.5°)";
             declinacionCalculadaGPS = -4.5;
             latitudActual = "No soportado";
             longitudActual = "No soportado";
-        }}
-    }}
+        }
+    }
 
-    function redimensionarCanvasOverlay() {{
+    function redimensionarCanvasOverlay() {
         overlayCanvas.width = video.clientWidth || 350;
         overlayCanvas.height = video.clientHeight || 220;
-    }}
+    }
 
-    function dibujarTargetGraphics(desvAz, desvTlt, estaConforme) {{
+    function dibujarTargetGraphics(desvAz, desvTlt, estaConforme) {
         redimensionarCanvasOverlay();
         const w = overlayCanvas.width;
         const h = overlayCanvas.height;
@@ -255,14 +256,14 @@ js_v66_engine = f"""
         oCtx.setLineDash([3, 3]);
         oCtx.stroke();
         oCtx.setLineDash([]);
-    }}
+    }
 
-    function filtrarAzimutEstable(nuevoHeading) {{
-        if (azimutSuave === null) {{
+    function filtrarAzimutEstable(nuevoHeading) {
+        if (azimutSuave === null) {
             azimutSuave = nuevoHeading;
             ultimoAzimutRenderizado = Math.round(azimutSuave);
             return azimutSuave;
-        }}
+        }
         let diferencia = nuevoHeading - azimutSuave;
         if (diferencia > 180) diferencia -= 360;
         if (diferencia < -180) diferencia += 360;
@@ -275,48 +276,48 @@ js_v66_engine = f"""
         if (deltaDisplay > 180) deltaDisplay -= 360;
         if (deltaDisplay < -180) deltaDisplay += 360;
 
-        if (Math.abs(deltaDisplay) >= UMBRAL_ZONA_MUERTA) {{
+        if (Math.abs(deltaDisplay) >= UMBRAL_ZONA_MUERTA) {
             ultimoAzimutRenderizado = candidatoRedondeado;
-        }}
+        }
         return ultimoAzimutRenderizado;
-    }}
+    }
 
-    function filtrarTiltEstable(nuevoBeta) {{
-        if (tiltSuave === null) {{
+    function filtrarTiltEstable(nuevoBeta) {
+        if (tiltSuave === null) {
             tiltSuave = nuevoBeta;
             return tiltSuave;
-        }}
+        }
         tiltSuave += (nuevoBeta - tiltSuave) * FACTOR_SUAVIDAD_TILT;
         return Math.round(tiltSuave);
-    }}
+    }
 
-    async function iniciarCamara() {{
-        try {{
-            const stream = await navigator.mediaDevices.getUserMedia({{
-                video: {{ 
+    async function iniciarCamara() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { 
                     facingMode: "environment",
-                    width: {{ ideal: 1920, max: 3840 }},
-                    height: {{ ideal: 1080, max: 2160 }}
-                }},
+                    width: { ideal: 1920, max: 3840 },
+                    height: { ideal: 1080, max: 2160 }
+                },
                 audio: false
-            }});
+            });
             video.srcObject = stream;
-            video.onloadedmetadata = () => {{ video.play(); }};
+            video.onloadedmetadata = () => { video.play(); };
             btnCapturar.style.display = 'block';
-        }} catch (err) {{
+        } catch (err) {
             alert("No se pudo iniciar la cámara en alta resolución. Revisar permisos.");
-        }}
-    }}
+        }
+    }
 
-    function procesarOrientacion(event) {{
+    function procesarOrientacion(event) {
         let heading = event.webkitCompassHeading;
-        if (heading === undefined || heading === null) {{
-            if (event.absolute === true && event.alpha !== null) {{
+        if (heading === undefined || heading === null) {
+            if (event.absolute === true && event.alpha !== null) {
                 heading = 360 - event.alpha;
-            }} else {{
+            } else {
                 heading = event.alpha;
-            }}
-        }}
+            }
+        }
 
         let beta = event.beta; 
         if (heading === null || heading === undefined || beta === null) return;
@@ -345,31 +346,31 @@ js_v66_engine = f"""
 
         dibujarTargetGraphics(desvAzimut, desvTilt, conforme);
 
-        if (conforme) {{
+        if (conforme) {
             dataPanel.style.borderColor = "#22c55e";
             statusElement.innerText = "🎯 OBJETIVO ALINEADO (CONFORME)";
             statusElement.style.background = "#22c55e";
-        }} else {{
+        } else {
             dataPanel.style.borderColor = "#ef4444";
             statusElement.innerText = "❌ FUERA DE OBJETIVO";
             statusElement.style.background = "#ef4444";
-        }}
-    }}
+        }
+    }
 
-    btnPermisos.addEventListener('click', async () => {{
+    btnPermisos.addEventListener('click', async () => {
         await iniciarCamara();
         obtenerGPS();
-        if (window.DeviceOrientationEvent) {{
+        if (window.DeviceOrientationEvent) {
             window.addEventListener('deviceorientation', procesarOrientacion, true);
             window.addEventListener('deviceorientationabsolute', procesarOrientacion, true);
             document.getElementById('lbl-status').innerText = "CONECTANDO SENSORES...";
-        }} else {{
+        } else {
             alert("Sensores no disponibles en este dispositivo.");
-        }}
+        }
         btnPermisos.style.display = 'none';
-    }});
+    });
 
-    btnCapturar.addEventListener('click', () => {{
+    btnCapturar.addEventListener('click', () => {
         canvas.width = video.videoWidth || 1280;
         canvas.height = video.videoHeight || 720;
         const ctx = canvas.getContext('2d');
@@ -378,7 +379,7 @@ js_v66_engine = f"""
 
         const esc = canvas.width / 400; 
         const ahora = new Date();
-        const fechaHora = ahora.toLocaleString('es-CL', {{ hour12: false }});
+        const fechaHora = ahora.toLocaleString('es-CL', { hour12: false });
 
         ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
         ctx.fillRect(10 * esc, 10 * esc, 380 * esc, 60 * esc); 
@@ -426,9 +427,20 @@ js_v66_engine = f"""
         downloadLink.href = imageUri;
         downloadLink.download = tNombreArchivo + "_evidencia.jpg";
         downloadLink.click();
-    }});
+    });
 </script>
 """
+
+# Reemplazo seguro de variables
+js_v66_engine = (
+    js_v66_template.replace("__TEXTO_IDENTIFICACION__", texto_identificacion)
+    .replace("__NOMBRE_ARCHIVO_SECTOR__", nombre_archivo_sector)
+    .replace("__AZIMUT_TEORICO__", str(azimut_teorico))
+    .replace("__TILT_TEORICO__", str(tilt_teorico))
+    .replace("__TOL_AZIMUT__", str(TOL_AZIMUT))
+    .replace("__TOL_TILT__", str(TOL_TILT))
+    .replace("__COMPENSACION_MANUAL__", str(compensacion_manual))
+)
 
 components.html(js_v66_engine, height=620, scrolling=True)
 
