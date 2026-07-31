@@ -459,18 +459,61 @@ if imagen_subida is not None:
 
   analisis_ia_texto = ""
 
-  if st.button("🚀 Iniciar Análisis con IA"):
-    if not api_key_input:
-      st.error(
-          "⚠️ Por favor ingresa una API Key válida antes de iniciar el"
-          " análisis."
-      )
-    else:
-      with st.spinner("Analizando evidencia fotográfica con Gemini AI..."):
-        try:
-          genai.configure(api_key=api_key_input)
+ if st.button("🚀 Iniciar Análisis con IA"):
+      if not api_key_input:
+        st.error(
+            "⚠️ Por favor ingresa una API Key válida antes de iniciar el"
+            " análisis."
+        )
+      else:
+        with st.spinner("Analizando evidencia fotográfica con Gemini AI..."):
+          try:
+            genai.configure(api_key=api_key_input)
 
-          prompt = f"""
+            # Tu prompt original
+            prompt = f"""
+                        Actúa como un auditor senior de Control de Calidad (QA) para redes de telecomunicaciones.
+                        Analiza la imagen adjunta correspondiente al sitio {sitio_nemonico}, {sector_seleccionado}.
+                        1. Revisa la marca de agua y telemetría de la captura (Azimut, Tilt, Coordenadas GPS, Estado de Alineación).
+                        2. Verifica visualmente las condiciones físicas visibles del entorno.
+                        3. Genera una evaluación técnica concisa en un párrafo, indicando si la evidencia es formalmente válida y cumple con los parámetros de alineación requeridos.
+                        """
+
+            # Lista de modelos a probar (si uno no tiene cuota gratuita, intenta con el siguiente)
+            modelos_disponibles = [
+                "gemini-1.5-flash",
+                "gemini-1.5-flash-8b",
+                "gemini-2.0-flash",
+            ]
+            exito = False
+
+            for nombre_modelo in modelos_disponibles:
+              try:
+                model = genai.GenerativeModel(nombre_modelo)
+                response = model.generate_content([prompt, img])
+                analisis_ia_texto = response.text
+
+                # Guardar resultado en sesión
+                st.session_state["analisis_ia"] = analisis_ia_texto
+                st.success(
+                    f"¡Análisis completado exitosamente con {nombre_modelo}!"
+                )
+                exito = True
+                break  # Sale del ciclo si tuvo éxito
+              except Exception as e_mod:
+                # Si falla este modelo por cuota o disponibilidad, continúa con el siguiente
+                continue
+
+            if not exito:
+              st.error(
+                  "❌ No se pudo conectar con los modelos de Gemini. Revisa"
+                  " que tu API Key esté activa en Google AI Studio o que tenga"
+                  " cuota disponible."
+              )
+
+          except Exception as e:
+            st.error(f"Error de configuración general: {str(e)}")
+
                     Actúa como un auditor senior de Control de Calidad (QA) para redes de telecomunicaciones Entel.
                     Analiza la imagen adjunta correspondiente al sitio {sitio_nemonico}, {sector_seleccionado}.
                     1. Revisa la marca de agua y telemetría de la captura (Azimut, Tilt, Coordenadas GPS, Estado de Alineación).
