@@ -478,24 +478,46 @@ if imagen_subida is not None:
                     3. Genera una evaluación técnica concisa en un párrafo, indicando si la evidencia es formalmente válida y cumple con los parámetros de alineación requeridos.
                     """
 
-          # --- ESTRATEGIA DE REINTENTO (FALLBACK) MULTI-MODELO ---
-          modelos_a_probar = [
+          # --- CONSULTA DINÁMICA DE MODELOS HABILITADOS ---
+          modelos_disponibles = []
+          try:
+            for m in genai.list_models():
+              if "generateContent" in m.supported_generation_methods:
+                modelos_disponibles.append(m.name)
+          except Exception:
+            pass
+
+          # Buscar modelo tipo 'flash' habilitado
+          modelo_elegido = None
+          for m_name in modelos_disponibles:
+            if "flash" in m_name:
+              modelo_elegido = m_name
+              break
+
+          if not modelo_elegido and modelos_disponibles:
+            modelo_elegido = modelos_disponibles[0]
+
+          # Lista de respaldo si la consulta no devuelve ningún modelo
+          modelos_a_intentar = (
+              [modelo_elegido] if modelo_elegido else []
+          ) + [
+              "models/gemini-2.5-flash",
+              "models/gemini-1.5-flash",
               "gemini-2.0-flash",
-              "gemini-1.5-flash",
-              "gemini-1.5-pro",
           ]
+
           exito = False
           ultimo_error = ""
 
-          for nombre_modelo in modelos_a_probar:
+          for nom_mod in modelos_a_intentar:
+            if not nom_mod:
+              continue
             try:
-              model = genai.GenerativeModel(nombre_modelo)
+              model = genai.GenerativeModel(nom_mod)
               response = model.generate_content([prompt, img])
               analisis_ia_texto = response.text
               st.session_state["analisis_ia"] = analisis_ia_texto
-              st.success(
-                  f"¡Análisis de IA completado exitosamente con {nombre_modelo}!"
-              )
+              st.success(f"¡Análisis completado exitosamente con {nom_mod}!")
               exito = True
               break
             except Exception as e_mod:
@@ -503,13 +525,10 @@ if imagen_subida is not None:
               continue
 
           if not exito:
-            st.error(
-                "Error al conectar con los modelos de Gemini. Detalle:"
-                f" {ultimo_error}"
-            )
+            st.error(f"Error al conectar con Gemini AI: {ultimo_error}")
 
         except Exception as e:
-          st.error(f"Error general en la configuración de Gemini: {str(e)}")
+          st.error(f"Error general de configuración: {str(e)}")
 
   if "analisis_ia" in st.session_state and st.session_state["analisis_ia"]:
     st.info(f"**Análisis Generado por IA:**\n\n{st.session_state['analisis_ia']}")
