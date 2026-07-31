@@ -507,12 +507,19 @@ if imagen_subida is not None:
 
         except Exception as e:
           st.error(f"Error general de configuración: {str(e)}")
-                        Actúa como un auditor senior de Control de Calidad (QA) para redes de telecomunicaciones.
-                        Analiza la imagen adjunta correspondiente al sitio {sitio_nemonico}, {sector_seleccionado}.
-                        1. Revisa la marca de agua y telemetría de la captura (Azimut, Tilt, Coordenadas GPS, Estado de Alineación).
-                        2. Verifica visualmente las condiciones físicas visibles del entorno.
-                        3. Genera una evaluación técnica concisa en un párrafo, indicando si la evidencia es formalmente válida y cumple con los parámetros de alineación requeridos.
-                        """
+
+    # --- PROMPT LIMPIO SIN ERRORES DE SANGRÍA ---
+          prompt = (
+              f"Actúa como un auditor senior de Control de Calidad (QA) para"
+              f" redes de telecomunicaciones Entel. Analiza la imagen adjunta"
+              f" correspondiente al sitio {sitio_nemonico},"
+              f" {sector_seleccionado}.\n1. Revisa la marca de agua y"
+              " telemetría de la captura (Azimut, Tilt, Coordenadas GPS, Estado"
+              " de Alineación).\n2. Verifica visualmente las condiciones"
+              " físicas visibles del entorno.\n3. Genera una evaluación técnica"
+              " concisa en un párrafo, indicando si la evidencia es formalmente"
+              " válida y cumple con los parámetros de alineación requeridos."
+          )
 
             # Lista de modelos a probar (si uno no tiene cuota gratuita, intenta con el siguiente)
             modelos_disponibles = [
