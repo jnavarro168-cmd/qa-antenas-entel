@@ -638,7 +638,7 @@ if uploaded_file:
             
             st.markdown("### 📊 Tabla de Auditoría y Dictamen OCR")
             
-           if estado_dictamen == "ALINEADO":
+            if estado_dictamen == "ALINEADO":
             st.success("✅ El sector está alineado")
-        else:
+            else:
             st.error(f"❌ El sector tiene estado: {estado_dictamen}")
