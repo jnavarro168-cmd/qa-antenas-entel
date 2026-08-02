@@ -108,7 +108,6 @@ st.info("Utiliza la cámara para alinear la antena y capturar la evidencia.")
 
 HTML_TEMPLATE = r"""
 <div id="capture-area" style="width: 100%; max-width: 500px; margin: auto; font-family: system-ui, -apple-system, sans-serif; background: #0f172a; padding: 8px; border-radius: 12px;">
-    
     <div style="position: relative; width: 100%; border-radius: 10px; overflow: hidden; background: #000;">
         <video id="webcam" autoplay playsinline style="width: 100%; display: block; max-height: 280px; object-fit: cover;"></video>
         <canvas id="target-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></canvas>
@@ -124,7 +123,6 @@ HTML_TEMPLATE = r"""
     </div>
     
     <div id="data-panel" style="margin-top: 8px; background: #1e293b; color: white; padding: 10px; border-radius: 10px; border: 2px solid #ef4444;">
-        
         <div style="display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; font-weight: bold; margin-bottom: 6px;">
             <div>ALINEACIÓN DE OBJETIVO (TARGET V6.8)</div>
             <div>TOL: Az±5° | Tlt±2°</div>
@@ -633,12 +631,34 @@ if uploaded_file:
         with st.spinner("Procesando imagen con OCR y analizando resultados..."):
             texto_extraido = ejecutar_ocr_imagen(image)
             estado_dictamen, az_leido, tilt_leido = analizar_texto_ocr(texto_extraido)
-            
+
             st.success("✅ Procesamiento OCR finalizado.")
-            
+
             st.markdown("### 📊 Tabla de Auditoría y Dictamen OCR")
-            
+
             if estado_dictamen == "ALINEADO":
-            st.success("✅ El sector está alineado")
+                st.success("✅ El sector está alineado")
             else:
-            st.error(f"❌ El sector tiene estado: {estado_dictamen}")
+                st.error(f"❌ El sector no está alineado. Estado: {estado_dictamen}")
+
+            # Generación y descarga de PDF
+            if REPORTLAB_AVAILABLE:
+                pdf_bytes = generar_pdf_reporte(
+                    sitio_nemonico,
+                    sector_seleccionado,
+                    azimut_teorico,
+                    tilt_teorico,
+                    image,
+                    texto_extraido,
+                    estado_dictamen,
+                    az_leido,
+                    tilt_leido,
+                )
+                st.download_button(
+                    label="📥 Descargar Reporte PDF",
+                    data=pdf_bytes,
+                    file_name=f"{nombre_archivo_sector}_Reporte_QA.pdf",
+                    mime="application/pdf",
+                )
+            else:
+                st.warning("⚠️ La librería ReportLab no está disponible para generar el PDF.")
