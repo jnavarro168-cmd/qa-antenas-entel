@@ -4,3 +4,6 @@ streamlit
 google-generativeai
 Pillow
 weasyprint
+reportlab
+easyocr
+pytesseract
