@@ -3,3 +3,7 @@ libpango1.0-dev
 libglib2.0-dev
 libxml2-dev
 libffi-dev
+tesseract-ocr
+tesseract-ocr-spa
+libpango-1.0-0
+libcairo2
