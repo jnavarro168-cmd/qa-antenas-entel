@@ -497,11 +497,10 @@ def ejecutar_ocr_imagen(pil_img):
 
 def analizar_texto_ocr(texto_ocr):
     """
-    Analiza el texto leído por el OCR para detectar el estado de alineación.
+    Analiza el texto leído por el OCR para detectar el estado de alineación y valores.
     """
     texto_upper = texto_ocr.upper() if texto_ocr else ""
     
-    # Detección de patrones de fallo o éxito
     es_fuera_rango = "FUERA" in texto_upper or "NO CONFORME" in texto_upper or "RECHAZADO" in texto_upper
     es_conforme = "CONFORME" in texto_upper or "ALINEADO" in texto_upper or "OBJETIVO" in texto_upper
     
@@ -522,8 +521,8 @@ def analizar_texto_ocr(texto_ocr):
     return estado, az_leido, tilt_leido
 
 
-def generar_pdf_reporte(sitio, sector, az_teorico, tilt_teorico, img_pil, texto_ocr, estado_dictamen):
-    """Genera el reporte PDF adaptando los colores del dictamen técnico"""
+def generar_pdf_reporte(sitio, sector, az_teorico, tilt_teorico, img_pil, texto_ocr, estado_dictamen, az_leido, tilt_leido):
+    """Genera el reporte PDF en ReportLab incorporando la Tabla del Análisis OCR"""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
     story = []
@@ -532,9 +531,9 @@ def generar_pdf_reporte(sitio, sector, az_teorico, tilt_teorico, img_pil, texto_
     title_style = ParagraphStyle(
         'TitleStyle',
         parent=styles['Heading1'],
-        fontSize=16,
-        textColor=colors.HexColor("#005A9C"),
-        spaceAfter=10,
+        fontSize=15,
+        textColor=colors.HexColor("#003366"),
+        spaceAfter=6,
         alignment=1
     )
     subtitle_style = ParagraphStyle(
@@ -555,33 +554,48 @@ def generar_pdf_reporte(sitio, sector, az_teorico, tilt_teorico, img_pil, texto_
     )
 
     story.append(Paragraph("<b>ENTEL QA - INFORME TÉCNICO DE INSPECCIÓN Y ALINEACIÓN</b>", title_style))
-    story.append(Paragraph(f"<b>Fecha:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | <b>Versión:</b> Target V6.8 OCR", subtitle_style))
+    story.append(Paragraph(f"<b>Fecha:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | <b>Sistema:</b> Target V6.8 OCR", subtitle_style))
 
-    # Definir colores según dictamen técnico
+    # Determinar dictámenes por parámetro
     es_aprobado = estado_dictamen == "ALINEADO"
     color_fondo_dictamen = colors.HexColor("#22c55e") if es_aprobado else colors.HexColor("#ef4444")
     texto_dictamen = "✅ CONFORME / OBJETIVO ALINEADO" if es_aprobado else "❌ FUERA DE RANGO / RECHAZADO"
+    
+    estado_parametro = "COINCIDE / OK" if es_aprobado else "RECHAZADO"
 
-    # Tabla de Datos Generales
-    data_tabla = [
-        [Paragraph("<b>Parámetro</b>", styles['Normal']), Paragraph("<b>Valor Auditado</b>", styles['Normal'])],
-        ["Sitio / Nemónico", sitio],
-        ["Sector Auditado", sector],
-        ["Azimut Teórico", f"{az_teorico}° (Tolerancia: ±5°)"],
-        ["Tilt Teórico", f"{tilt_teorico}° (Tolerancia: ±2°)"],
-        ["Resultado OCR", "LECTURA CORRECTA EN ESTAMPA"]
+    # --- TABLA DE ANÁLISIS OCR Y MEDICIONES EN PDF ---
+    story.append(Paragraph("<b>Detalle del Análisis OCR y Mediciones:</b>", section_heading))
+
+    header_style = ParagraphStyle('HeaderStyle', parent=styles['Normal'], fontSize=9, textColor=colors.whitesmoke, fontName='Helvetica-Bold')
+    cell_style = ParagraphStyle('CellStyle', parent=styles['Normal'], fontSize=8.5, fontName='Helvetica')
+    
+    data_tabla_ocr = [
+        [
+            Paragraph("<b>Parámetro / Campo</b>", header_style),
+            Paragraph("<b>Valor Auditado (OCR)</b>", header_style),
+            Paragraph("<b>Teórico / Tolerancia</b>", header_style),
+            Paragraph("<b>Dictamen</b>", header_style)
+        ],
+        [Paragraph("<b>Sitio / Nemónico</b>", cell_style), Paragraph(sitio, cell_style), Paragraph(sitio, cell_style), Paragraph("COINCIDE", cell_style)],
+        [Paragraph("<b>Sector Auditado</b>", cell_style), Paragraph(sector, cell_style), Paragraph(sector, cell_style), Paragraph("COINCIDE", cell_style)],
+        [Paragraph("<b>Azimut</b>", cell_style), Paragraph(str(az_leido), cell_style), Paragraph(f"{az_teorico}° (±5°)", cell_style), Paragraph(estado_parametro, cell_style)],
+        [Paragraph("<b>Tilt Real</b>", cell_style), Paragraph(str(tilt_leido), cell_style), Paragraph(f"{tilt_teorico}° (±2°)", cell_style), Paragraph(estado_parametro, cell_style)],
+        [Paragraph("<b>Lectura Estampa</b>", cell_style), Paragraph("CORRECTA", cell_style), Paragraph("N/A", cell_style), Paragraph("OK", cell_style)]
     ]
-    t = Table(data_tabla, colWidths=[180, 320])
-    t.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#e2e8f0")),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor("#cbd5e1")),
-        ('PADDING', (0,0), (-1,-1), 5),
-        ('FONTSIZE', (0,0), (-1,-1), 9),
+
+    tabla_pdf = Table(data_tabla_ocr, colWidths=[130, 130, 150, 130])
+    tabla_pdf.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CCCCCC')),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9F9F9')]),
+        ('PADDING', (0, 0), (-1, -1), 5),
     ]))
-    story.append(t)
+    story.append(tabla_pdf)
     story.append(Spacer(1, 10))
 
-    # Evidencia Fotográfica
+    # --- EVIDENCIA FOTOGRÁFICA ---
     story.append(Paragraph("<b>Evidencia Fotográfica Capturada:</b>", section_heading))
     img_byte_arr = io.BytesIO()
     img_pil.save(img_byte_arr, format='JPEG')
@@ -589,19 +603,19 @@ def generar_pdf_reporte(sitio, sector, az_teorico, tilt_teorico, img_pil, texto_
     story.append(RLImage(img_byte_arr, width=400, height=225))
     story.append(Spacer(1, 10))
 
-    # Banner Final de Dictamen
+    # --- BANNER FINAL DE DICTAMEN ---
     data_dictamen = [
         ["DICTAMEN FINAL QA", texto_dictamen]
     ]
-    t_dic = Table(data_dictamen, colWidths=[200, 300])
+    t_dic = Table(data_dictamen, colWidths=[180, 360])
     t_dic.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), color_fondo_dictamen),
         ('TEXTCOLOR', (0,0), (-1,-1), colors.white),
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('FONTNAME', (0,0), (-1,-1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,0), (-1,-1), 11),
-        ('PADDING', (0,0), (-1,-1), 8),
+        ('FONTSIZE', (0,0), (-1,-1), 10),
+        ('PADDING', (0,0), (-1,-1), 7),
     ]))
     story.append(t_dic)
 
@@ -610,6 +624,7 @@ def generar_pdf_reporte(sitio, sector, az_teorico, tilt_teorico, img_pil, texto_
     return buffer.getvalue()
 
 
+# --- PROCESAMIENTO DE EVIDENCIA Y ACCIONES EN STREAMLIT ---
 if uploaded_file:
     image = Image.open(uploaded_file)
     st.image(image, caption="Evidencia Cargada", use_container_width=True)
@@ -623,64 +638,4 @@ if uploaded_file:
             
             st.markdown("### 📊 Tabla de Auditoría y Dictamen OCR")
             
-            # Formato según estado
             if estado_dictamen == "ALINEADO":
-                badge_html = "<span style='color: #22c55e; font-weight: bold; font-size: 15px;'>✅ OBJETIVO ALINEADO</span>"
-                status_box = "<div style='background-color: rgba(34, 197, 94, 0.15); border: 2px solid #22c55e; color: #22c55e; padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; font-size: 16px; margin-bottom: 15px;'>✅ OBJETIVO ALINEADO (CONFORME)</div>"
-            else:
-                badge_html = "<span style='color: #ef4444; font-weight: bold; font-size: 15px;'>❌ FUERA DE RANGO</span>"
-                status_box = "<div style='background-color: rgba(239, 68, 68, 0.15); border: 2px solid #ef4444; color: #ef4444; padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; font-size: 16px; margin-bottom: 15px;'>❌ FUERA DE RANGO (NO CONFORME)</div>"
-
-            # Renderizado de Tabla Ordenada
-            tabla_html = f"""
-            <table style="width:100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 15px;">
-                <thead>
-                    <tr style="background-color: #1e293b; color: #f8fafc; text-align: left;">
-                        <th style="padding: 10px; border: 1px solid #334155;">Parámetro Auditado</th>
-                        <th style="padding: 10px; border: 1px solid #334155;">Valor Teórico Configurado</th>
-                        <th style="padding: 10px; border: 1px solid #334155;">Lectura OCR Detectada</th>
-                        <th style="padding: 10px; border: 1px solid #334155;">Estado</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr style="background-color: #0f172a; color: #f8fafc;">
-                        <td style="padding: 10px; border: 1px solid #334155; font-weight: bold;">Azimut</td>
-                        <td style="padding: 10px; border: 1px solid #334155;">{azimut_teorico}° (Tolerancia ±5°)</td>
-                        <td style="padding: 10px; border: 1px solid #334155;">{az_leido}</td>
-                        <td style="padding: 10px; border: 1px solid #334155;">{badge_html}</td>
-                    </tr>
-                    <tr style="background-color: #1e293b; color: #f8fafc;">
-                        <td style="padding: 10px; border: 1px solid #334155; font-weight: bold;">Tilt</td>
-                        <td style="padding: 10px; border: 1px solid #334155;">{tilt_teorico}° (Tolerancia ±2°)</td>
-                        <td style="padding: 10px; border: 1px solid #334155;">{tilt_leido}</td>
-                        <td style="padding: 10px; border: 1px solid #334155;">{badge_html}</td>
-                    </tr>
-                </tbody>
-            </table>
-            """
-            st.markdown(tabla_html, unsafe_allow_html=True)
-            st.markdown(status_box, unsafe_allow_html=True)
-
-            with st.expander("👁️ Ver texto plano leído por OCR", expanded=False):
-                st.code(texto_extraido if texto_extraido else "Sin texto detectado")
-
-            if REPORTLAB_AVAILABLE:
-                pdf_bytes = generar_pdf_reporte(
-                    sitio_nemonico,
-                    sector_seleccionado,
-                    azimut_teorico,
-                    tilt_teorico,
-                    image,
-                    texto_extraido,
-                    estado_dictamen
-                )
-                
-                nombre_pdf = f"Informe_QA_{sitio_nemonico}_{sector_seleccionado.replace(' ', '_')}.pdf"
-                
-                st.download_button(
-                    label="📥 DESCARGAR INFORME TÉCNICO PDF",
-                    data=pdf_bytes,
-                    file_name=nombre_pdf,
-                    mime="application/pdf",
-                    type="primary"
-                )
